@@ -846,7 +846,7 @@ variable "hcloud_ccm_helm_chart" {
 
 variable "hcloud_ccm_helm_version" {
   type        = string
-  default     = "1.23.0"
+  default     = "1.24.0"
   description = "Version of the Hcloud CCM Helm chart to deploy."
 }
 
