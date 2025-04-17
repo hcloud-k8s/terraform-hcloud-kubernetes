@@ -1343,6 +1343,6 @@ variable "ingress_load_balancer_pools" {
 # Miscellaneous
 variable "prometheus_operator_crds_version" {
   type        = string
-  default     = "v0.81.0" # https://github.com/prometheus-operator/prometheus-operator
+  default     = "v0.82.0" # https://github.com/prometheus-operator/prometheus-operator
   description = "Specifies the version of the Prometheus Operator Custom Resource Definitions (CRDs) to deploy."
 }
