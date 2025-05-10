@@ -47,10 +47,10 @@ data "helm_template" "hcloud_ccm" {
 }
 
 locals {
-  hcloud_ccm_manifest = {
+  hcloud_ccm_manifest = var.hcloud_ccm_enabled ? {
     name     = "hcloud-ccm"
     contents = data.helm_template.hcloud_ccm.manifest
-  }
+  } : null
 }
 
 # Hcloud CSI

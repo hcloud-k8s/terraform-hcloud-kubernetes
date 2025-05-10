@@ -679,11 +679,32 @@ variable "talos_logging_destinations" {
   default = []
 }
 
+variable "talos_extra_inline_manifests" {
+  type = list(object({
+    name     = string
+    contents = string
+  }))
+  description = "List of additional inline Kubernetes manifests to append to the Talos machine configuration during bootstrap."
+  default     = null
+}
+
+variable "talos_extra_remote_manifests" {
+  type        = list(string)
+  description = "List of remote URLs pointing to Kubernetes manifests to be appended to the Talos machine configuration during bootstrap."
+  default     = null
+}
+
 # Talos Backup
 variable "talos_backup_version" {
   type        = string
   default     = "v0.1.0-beta.2-1-g9ccc125"
   description = "Specifies the version of Talos Backup to be used in generated machine configurations."
+}
+
+variable "talos_backup_s3_enabled" {
+  type        = bool
+  default     = true
+  description = "Enable Talos etcd S3 backup cronjob."
 }
 
 variable "talos_backup_s3_hcloud_url" {
@@ -796,6 +817,11 @@ variable "kube_api_extra_args" {
 
 
 # Talos CCM
+variable "talos_ccm_enabled" {
+  type        = bool
+  default     = true
+  description = "Enables the Talos Cloud Controller Manager (CCM) deployment."
+}
 variable "talos_ccm_version" {
   type        = string
   default     = "v1.9.1" # https://github.com/siderolabs/talos-cloud-controller-manager
@@ -844,6 +870,11 @@ variable "hcloud_load_balancer_location" {
 
 
 # Hetzner Cloud Controller Manager (CCM)
+variable "hcloud_ccm_enabled" {
+  type        = bool
+  default     = true
+  description = "Enables the Hetzner Cloud Controller Manager (CCM)."
+}
 variable "hcloud_ccm_helm_repository" {
   type        = string
   default     = "https://charts.hetzner.cloud"
@@ -934,6 +965,11 @@ variable "longhorn_enabled" {
 
 
 # Cilium
+variable "cilium_enabled" {
+  type        = bool
+  default     = true
+  description = "Enables the Cilium CNI deployment."
+}
 variable "cilium_helm_repository" {
   type        = string
   default     = "https://helm.cilium.io"
@@ -1353,6 +1389,11 @@ variable "ingress_load_balancer_pools" {
 
 
 # Miscellaneous
+variable "prometheus_operator_crds_enabled" {
+  type        = bool
+  default     = true
+  description = "Enables the Prometheus Operator Custom Resource Definitions (CRDs) deployment."
+}
 variable "prometheus_operator_crds_version" {
   type        = string
   default     = "v0.82.1" # https://github.com/prometheus-operator/prometheus-operator

@@ -3,23 +3,23 @@ locals {
 
   # Kubernetes Manifests for Talos
   talos_inline_manifests = concat(
-    [
-      local.talos_backup_manifest,
-      local.hcloud_secret_manifest,
-      local.hcloud_ccm_manifest,
-      local.cilium_manifest
-    ],
+    [local.hcloud_secret_manifest],
+    local.cilium_manifest != null ? [local.cilium_manifest] : [],
+    local.hcloud_ccm_manifest != null ? [local.hcloud_ccm_manifest] : [],
     local.hcloud_csi_manifest != null ? [local.hcloud_csi_manifest] : [],
+    local.talos_backup_manifest != null ? [local.talos_backup_manifest] : [],
     local.longhorn_manifest != null ? [local.longhorn_manifest] : [],
     local.metrics_server_manifest != null ? [local.metrics_server_manifest] : [],
     local.cert_manager_manifest != null ? [local.cert_manager_manifest] : [],
     local.ingress_nginx_manifest != null ? [local.ingress_nginx_manifest] : [],
-    local.cluster_autoscaler_manifest != null ? [local.cluster_autoscaler_manifest] : []
+    local.cluster_autoscaler_manifest != null ? [local.cluster_autoscaler_manifest] : [],
+    var.talos_extra_inline_manifests != null ? var.talos_extra_inline_manifests : []
   )
-  talos_manifests = [
-    "https://raw.githubusercontent.com/siderolabs/talos-cloud-controller-manager/${var.talos_ccm_version}/docs/deploy/cloud-controller-manager-daemonset.yml",
-    "https://github.com/prometheus-operator/prometheus-operator/releases/download/${var.prometheus_operator_crds_version}/stripped-down-crds.yaml"
-  ]
+  talos_manifests = concat(
+    var.talos_ccm_enabled ? ["https://raw.githubusercontent.com/siderolabs/talos-cloud-controller-manager/${var.talos_ccm_version}/docs/deploy/cloud-controller-manager-daemonset.yml"] : [],
+    var.prometheus_operator_crds_enabled ? ["https://github.com/prometheus-operator/prometheus-operator/releases/download/${var.prometheus_operator_crds_version}/stripped-down-crds.yaml"] : [],
+    var.talos_extra_remote_manifests != null ? var.talos_extra_remote_manifests : []
+  )
 
   # Talos and Kubernetes Certificates
   certificate_san = sort(

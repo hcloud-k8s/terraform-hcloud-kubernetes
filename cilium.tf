@@ -121,8 +121,8 @@ data "helm_template" "cilium" {
 }
 
 locals {
-  cilium_manifest = {
+  cilium_manifest = var.cilium_enabled ? {
     name     = "cilium"
     contents = data.helm_template.cilium.manifest
-  }
+  } : null
 }

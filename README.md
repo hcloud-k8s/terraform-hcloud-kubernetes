@@ -626,6 +626,88 @@ talos_siderolabs_discovery_service_enabled = true
 For more details, refer to the [official Talos discovery guide](https://www.talos.dev/latest/talos-guides/discovery/).
 </details>
 
+<!-- Talos Bootstrap Manifests -->
+<details>
+<summary><b>Talos Bootstrap Manifests</b></summary>
+
+### Toggle Component Deployment in Bootstrap Manifests
+
+During the cluster provisioning phase, each component manifest is applied using Talos's bootstrap manifests feature. However, this also means that the manifests are **re-applied** every time `terraform apply` is run, as part of the [automated Kubernetes upgrade process](https://www.talos.dev/v1.8/kubernetes-guides/upgrading-kubernetes/#automated-kubernetes-upgrade) triggered by the module.
+
+This behavior can cause issues if you want to use GitOps tools like **FluxCD** or **ArgoCD** to manage the lifecycle of these components. Since Talos manages the application lifecycle, any changes made by FluxCD or ArgoCD (e.g., annotations or labels) may be overwritten or removed during upgrades, leading to conflicts.
+
+Before delegating lifecycle control to other tools, you must **first remove the corresponding manifests from the Talos machine configuration**. This can be done after the initial cluster provisioning using the following Terraform variables:
+
+```hcl
+# Core Component Configuration
+cilium_enabled                     = true  # Enabled by default
+talos_backup_s3_enabled            = true  # Enabled by default
+talos_ccm_enabled                  = true  # Enabled by default
+talos_coredns_enabled              = true  # Enabled by default
+hcloud_ccm_enabled                 = true  # Enabled by default
+hcloud_csi_enabled                 = true  # Enabled by default
+cert_manager_enabled               = true  # Disabled by default
+ingress_nginx_enabled              = true  # Disabled by default
+longhorn_enabled                   = true  # Disabled by default
+metrics_server_enabled             = true  # Enabled by default
+prometheus_operator_crds_enabled   = true  # Enabled by default
+
+# Talos etcd backup is automatically enabled when any of the following S3 settings are defined
+talos_backup_s3_endpoint    = "https://..."
+talos_backup_s3_hcloud_url  = "https://<bucket>.<location>.your-objectstorage.com"
+
+# Cluster Autoscaler Configuration
+# Automatically enabled when one or more node pools are defined
+cluster_autoscaler_nodepools = [
+  {
+    name     = "autoscaler"
+    type     = "cpx11"
+    location = "fsn1"
+    min      = 0
+    max      = 6
+    labels   = {
+      "autoscaler-node" = "true"
+    }
+    taints   = [
+      "autoscaler-node=true:NoExecute"
+    ]
+  }
+]
+```
+
+> **Note:** Disabling a component **does not delete** its deployed resources. This is explicitly stated in the [Talos documentation](https://www.talos.dev/v1.8/kubernetes-guides/upgrading-kubernetes/#automated-kubernetes-upgrade).
+
+After removing the component from the bootstrap manifests, you can either delete the existing resources manually before reapplying, or allow FluxCD/ArgoCD to take over their reconciliation and ongoing management.
+
+### Adding Additional Manifests
+
+In addition to the default components, you can also include extra bootstrap manifests using the variables below:
+
+```hcl
+# Extra remote manifests (fetched from the internet)
+talos_extra_remote_manifests = [
+  "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml"
+]
+
+# Extra inline manifests (defined directly in Terraform)
+talos_extra_inline_manifests = [
+  {
+    name = "test-manifest"
+    contents = <<-EOF
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: test-secret
+      data:
+        secret: dGVzdA==
+    EOF
+  }
+]
+```
+
+</details>
+
 <!-- Lifecycle -->
 ## :recycle: Lifecycle
 The [Talos Terraform Provider](https://registry.terraform.io/providers/siderolabs/talos) does not support declarative upgrades of Talos or Kubernetes versions. This module compensates for these limitations using `talosctl` to implement the required functionalities. Any minor or major upgrades to Talos and Kubernetes will result in a major version change of this module. Please be aware that downgrades are typically neither supported nor tested.
