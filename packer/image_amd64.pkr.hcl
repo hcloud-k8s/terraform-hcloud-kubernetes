@@ -47,6 +47,10 @@ build {
       <<-EOT
         set -euo pipefail
 
+        # Discard the entire /dev/sda to free up space and make the snapshot smaller
+        echo 'Zeroing disk first before writing Talos image'
+        blkdiscard /dev/sda 2>/dev/null
+
         echo 'Download Talos ${var.talos_version} image (${var.talos_schematic_id})'
 
         wget \
