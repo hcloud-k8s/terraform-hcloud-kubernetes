@@ -322,9 +322,9 @@ variable "control_plane_nodepools" {
 }
 
 variable "control_plane_config_patches" {
-  type        = list(any)
-  default     = []
-  description = "List of configuration patches applied to the Control Plane nodes."
+  type        = any
+  default     = {}
+  description = "Map of configuration patches applied to the Control Plane nodes."
 }
 
 
@@ -400,9 +400,9 @@ variable "worker_nodepools" {
 }
 
 variable "worker_config_patches" {
-  type        = list(any)
-  default     = []
-  description = "List of configuration patches applied to the Worker nodes."
+  type        = any
+  default     = {}
+  description = "Map of configuration patches applied to the Worker nodes."
 }
 
 
@@ -484,9 +484,9 @@ variable "cluster_autoscaler_nodepools" {
 }
 
 variable "cluster_autoscaler_config_patches" {
-  type        = list(any)
-  default     = []
-  description = "List of configuration patches applied to the Cluster Autoscaler nodes."
+  type        = any
+  default     = {}
+  description = "Map of configuration patches applied to the Cluster Autoscaler nodes."
 }
 
 
