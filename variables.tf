@@ -917,7 +917,7 @@ variable "hcloud_csi_helm_chart" {
 
 variable "hcloud_csi_helm_version" {
   type        = string
-  default     = "2.13.0"
+  default     = "2.14.0"
   description = "Version of the Hcloud CSI Helm chart to deploy."
 }
 
