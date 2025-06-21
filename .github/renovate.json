@@ -4,14 +4,7 @@
     "config:recommended"
   ],
   "separateMinorPatch": true,
-  "packageRules": [
-    {
-      "matchUpdateTypes": [
-        "patch"
-      ],
-      "automerge": true
-    }
-  ],
+  "automerge": true,
   "customManagers": [
     {
       "description": "Update Helm Charts used in Terraform",
