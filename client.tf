@@ -126,3 +126,23 @@ resource "terraform_data" "create_kubeconfig" {
 
   depends_on = [talos_machine_configuration_apply.control_plane]
 }
+
+resource "terraform_data" "create_extended_worker_config" {
+
+
+  provisioner "local-exec" {
+    when    = create
+    quiet   = true
+    command = <<-EOT
+      set -eu
+
+      printf '%s' "$KUBECONFIG_CONTENT" > "$CLUSTER_KUBECONFIG_PATH"
+    EOT
+    environment = {
+      KUBECONFIG_CONTENT      = local.kubeconfig
+      CLUSTER_KUBECONFIG_PATH = var.cluster_kubeconfig_path
+    }
+  }
+
+}
+

@@ -399,6 +399,75 @@ variable "worker_nodepools" {
   }
 }
 
+variable "extended_worker_nodepools" {
+  type = list(object({
+    name            = string
+    location        = string
+    type            = string
+    backups         = optional(bool, false)
+    keep_disk       = optional(bool, false)
+    labels          = optional(map(string), {})
+    annotations     = optional(map(string), {})
+    taints          = optional(list(string), [])
+    count           = optional(number, 1)
+    rdns            = optional(string)
+    rdns_ipv4       = optional(string)
+    rdns_ipv6       = optional(string)
+    placement_group = optional(bool, true)
+  }))
+  default     = []
+  description = "Defines configuration settings for Worker node pools within the cluster."
+
+  validation {
+    condition     = length(var.extended_worker_nodepools) == length(distinct([for np in var.extended_worker_nodepools : np.name]))
+    error_message = "Worker nodepool names must be unique to avoid configuration conflicts."
+  }
+
+  validation {
+    condition = length(var.extended_worker_nodepools) == 0 || sum(
+      [for worker_nodepool in var.extended_worker_nodepools : coalesce(worker_nodepool.count, 1)]
+    ) <= 100
+    error_message = "The total count of nodes in both worker and Control Plane nodepools must not exceed 100 to ensure manageable cluster size."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.extended_worker_nodepools : contains([
+        "fsn1", "nbg1", "hel1", "ash", "hil", "sin"
+      ], np.location)
+    ])
+    error_message = "Each nodepool location must be one of: 'fsn1' (Falkenstein), 'nbg1' (Nuremberg), 'hel1' (Helsinki), 'ash' (Ashburn), 'hil' (Hillsboro), 'sin' (Singapore)."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.extended_worker_nodepools : length(var.cluster_name) + length(np.name) <= 56
+    ])
+    error_message = "The combined length of the cluster name and any Worker nodepool name must not exceed 56 characters."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.extended_worker_nodepools : np.rdns == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", np.rdns))
+    ])
+    error_message = "The reverse DNS domain must be a valid domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters. Supports dynamic substitution with placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.extended_worker_nodepools : np.rdns_ipv4 == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", np.rdns_ipv4))
+    ])
+    error_message = "The rdns_ipv4 must be a valid IPv4 reverse DNS domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters. Supports dynamic substitution with placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.extended_worker_nodepools : np.rdns_ipv6 == null || can(regex("^(?:(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?\\.)*(?:[a-z0-9{} ](?:[a-z0-9-{} ]{0,61}[a-z0-9{} ])?))$", np.rdns_ipv6))
+    ])
+    error_message = "The rdns_ipv6 must be a valid IPv6 reverse DNS domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters. Supports dynamic substitution with placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
+  }
+}
+
 variable "worker_config_patches" {
   type        = list(any)
   default     = []
@@ -619,6 +688,14 @@ variable "talos_coredns_enabled" {
   default     = true
   description = "Determines whether CoreDNS is enabled in the Talos cluster. When enabled, CoreDNS serves as the primary DNS service provider in Kubernetes."
 }
+
+variable "worker_extend" {
+  type        = bool
+  default     = false
+  description = "Determines whether the worker nodes need to be extended to a second private network."
+}
+
+
 
 variable "talos_nameservers" {
   type = list(string)
@@ -853,6 +930,17 @@ variable "hcloud_network_id" {
   validation {
     condition     = !(var.hcloud_network_id != null && var.hcloud_network != null)
     error_message = "Only one of hcloud_network_id or hcloud_network may be provided, not both."
+  }
+}
+
+variable "hcloud_extend_network_id" {
+  type        = number
+  default     = null
+  description = "The Hetzner extended network ID of an existing network."
+
+  validation {
+    condition     = !(var.hcloud_extend_network_id != null && var.hcloud_network != null)
+    error_message = "Only one of hcloud_extend_network_id or hcloud_network may be provided, not both."
   }
 }
 
@@ -1403,3 +1491,4 @@ variable "prometheus_operator_crds_version" {
   default     = "v0.82.1" # https://github.com/prometheus-operator/prometheus-operator
   description = "Specifies the version of the Prometheus Operator Custom Resource Definitions (CRDs) to deploy."
 }
+

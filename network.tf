@@ -54,6 +54,12 @@ data "hcloud_network" "this" {
   id = var.hcloud_network != null ? var.hcloud_network.id : var.hcloud_network_id
 }
 
+data "hcloud_network" "this_extend" {
+  count = var.hcloud_network != null || var.hcloud_network_id != null ? 1 : 0
+
+  id = var.hcloud_network != null ? var.hcloud_network.id : var.hcloud_network_id
+}
+
 resource "hcloud_network" "this" {
   count = length(data.hcloud_network.this) > 0 ? 0 : 1
 
@@ -121,3 +127,4 @@ resource "hcloud_network_subnet" "autoscaler" {
     hcloud_network_subnet.worker
   ]
 }
+

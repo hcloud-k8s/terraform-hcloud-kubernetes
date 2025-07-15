@@ -66,6 +66,12 @@ locals {
     metric  = 512
   }]
 
+  talos_extra_routes_extend = [for cidr in ["0.0.0.0/0"] : {
+    network = cidr
+    gateway = "10.12.0.1"
+    metric  = 512
+  }]
+
   # Interface Configuration
   talos_public_interface_enabled = var.talos_public_ipv4_enabled || var.talos_public_ipv6_enabled
 
@@ -399,6 +405,110 @@ locals {
     }
   }
 
+  # Worker Config
+  extended_worker_talos_config_patch = {
+    for node in hcloud_server.worker_extend : node.name => {
+      machine = {
+        install = {
+          image           = local.talos_installer_image_url
+          extraKernelArgs = var.talos_extra_kernel_args
+        }
+        nodeLabels      = local.extend_worker_nodepools_map[node.labels.nodepool].labels
+        nodeAnnotations = local.extend_worker_nodepools_map[node.labels.nodepool].annotations
+        # certSANs        = local.certificate_san
+        certSANs = local.certificate_san
+        network = {
+          interfaces = concat(
+            local.talos_public_interface_enabled ? [{
+
+              interface = "eth0"
+              dhcp      = true
+              dhcpOptions = {
+                ipv4 = var.talos_public_ipv4_enabled
+                ipv6 = false
+              }
+            }] : [],
+            [{
+              interface = local.talos_public_interface_enabled ? "eth1" : "eth0"
+              dhcp      = true
+              routes    = local.talos_extra_routes_extend
+            }]
+          )
+          nameservers      = local.talos_nameservers
+          extraHostEntries = local.extra_host_entries
+        }
+        kubelet = {
+          extraArgs = merge(
+            {
+              "cloud-provider"             = "external",
+              "rotate-server-certificates" = true
+            },
+            var.kubernetes_kubelet_extra_args
+          )
+          extraConfig = merge(
+            {
+              shutdownGracePeriod             = "90s"
+              shutdownGracePeriodCriticalPods = "15s"
+              registerWithTaints              = local.extend_worker_nodepools_map[node.labels.nodepool].taints
+              systemReserved = {
+                cpu               = "100m"
+                memory            = "300Mi"
+                ephemeral-storage = "1Gi"
+              }
+              kubeReserved = {
+                cpu               = "100m"
+                memory            = "350Mi"
+                ephemeral-storage = "1Gi"
+              }
+            },
+            var.kubernetes_kubelet_extra_config
+          )
+          extraMounts = local.talos_kubelet_extra_mounts
+          nodeIP = {
+            # validSubnets = [local.node_ipv4_cidr]
+            validSubnets = ["10.12.0.0/16"]
+
+          }
+        }
+        kernel = {
+          modules = var.talos_kernel_modules
+        }
+        sysctls = merge(
+          {
+            "net.core.somaxconn"                 = "65535"
+            "net.core.netdev_max_backlog"        = "4096"
+            "net.ipv6.conf.default.disable_ipv6" = "${var.talos_ipv6_enabled ? 0 : 1}"
+            "net.ipv6.conf.all.disable_ipv6"     = "${var.talos_ipv6_enabled ? 0 : 1}"
+          },
+          var.talos_sysctls_extra_args
+        )
+        registries           = var.talos_registries
+        systemDiskEncryption = local.systemDiskEncryption
+        features = {
+          hostDNS = local.talos_host_dns
+        }
+        time = {
+          servers = var.talos_time_servers
+        }
+        logging = {
+          destinations = var.talos_logging_destinations
+        }
+      }
+      cluster = {
+        network = {
+          dnsDomain      = var.cluster_domain
+          podSubnets     = [local.pod_ipv4_cidr]
+          serviceSubnets = [local.service_ipv4_cidr]
+          cni            = { name = "none" }
+        }
+        proxy = {
+          disabled = true
+        }
+        discovery = local.talos_discovery
+      }
+    }
+  }
+
   # Autoscaler Config
   autoscaler_nodepool_talos_config_patch = {
     for nodepool in local.cluster_autoscaler_nodepools : nodepool.name => {
@@ -535,6 +645,23 @@ data "talos_machine_configuration" "worker" {
   examples = false
 }
 
+data "talos_machine_configuration" "worker_extend" {
+  for_each = { for node in hcloud_server.worker_extend : node.name => node }
+
+  talos_version      = var.talos_version
+  cluster_name       = var.cluster_name
+  cluster_endpoint   = local.kube_api_url_internal
+  kubernetes_version = var.kubernetes_version
+  machine_type       = "worker"
+  machine_secrets    = talos_machine_secrets.this.machine_secrets
+  config_patches = [
+    yamlencode(local.extended_worker_talos_config_patch[each.key]),
+    yamlencode(var.worker_config_patches)
+  ]
+  docs     = false
+  examples = false
+}
+
 data "talos_machine_configuration" "cluster_autoscaler" {
   for_each = { for nodepool in local.cluster_autoscaler_nodepools : nodepool.name => nodepool }
 
@@ -551,3 +678,4 @@ data "talos_machine_configuration" "cluster_autoscaler" {
   docs     = false
   examples = false
 }
+

@@ -65,6 +65,37 @@ locals {
     }
   ]
 
+  extended_worker_nodepools = [
+    for np in var.extended_worker_nodepools : {
+      name        = np.name,
+      location    = np.location,
+      server_type = np.type,
+      backups     = np.backups,
+      keep_disk   = np.keep_disk,
+      rdns_ipv4 = var.talos_public_ipv4_enabled ? (
+        np.rdns_ipv4 != null ? np.rdns_ipv4 :
+        np.rdns != null ? np.rdns :
+        local.cluster_rdns_ipv4
+      ) : null,
+      rdns_ipv6 = var.talos_public_ipv6_enabled ? (
+        np.rdns_ipv6 != null ? np.rdns_ipv6 :
+        np.rdns != null ? np.rdns :
+        local.cluster_rdns_ipv6
+      ) : null,
+      labels = merge(
+        np.labels,
+        { nodepool = np.name }
+      ),
+      annotations = np.annotations,
+      taints = [for taint in np.taints : regex(
+        "^(?P<key>[^=:]+)=?(?P<value>[^=:]*?):(?P<effect>.+)$",
+        taint
+      )],
+      count           = np.count,
+      placement_group = np.placement_group
+    }
+  ]
+
   cluster_autoscaler_nodepools = [
     for np in var.cluster_autoscaler_nodepools : {
       name        = np.name,
@@ -86,6 +117,7 @@ locals {
 
   control_plane_nodepools_map      = { for np in local.control_plane_nodepools : np.name => np }
   worker_nodepools_map             = { for np in local.worker_nodepools : np.name => np }
+  extend_worker_nodepools_map      = { for np in local.extended_worker_nodepools : np.name => np }
   cluster_autoscaler_nodepools_map = { for np in local.cluster_autoscaler_nodepools : np.name => np }
 
   control_plane_sum = sum(concat(
@@ -101,3 +133,4 @@ locals {
     [for np in local.cluster_autoscaler_nodepools : np.max if length(np.taints) == 0], [0]
   ))
 }
+

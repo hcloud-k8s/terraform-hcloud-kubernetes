@@ -224,6 +224,27 @@ resource "talos_machine_configuration_apply" "worker" {
   ]
 }
 
+resource "talos_machine_configuration_apply" "worker_extend" {
+  for_each = { for worker in hcloud_server.worker_extend : worker.name => worker }
+
+  client_configuration        = talos_machine_secrets.this.client_configuration
+  machine_configuration_input = data.talos_machine_configuration.worker_extend[each.key].machine_configuration
+  endpoint                    = var.cluster_access == "private" ? tolist(each.value.network)[0].ip : coalesce(each.value.ipv4_address, each.value.ipv6_address)
+  node                        = tolist(each.value.network)[0].ip
+  apply_mode                  = var.talos_machine_configuration_apply_mode
+
+  on_destroy = {
+    graceful = var.cluster_graceful_destroy
+    reset    = true
+    reboot   = false
+  }
+
+  # depends_on = [
+  #   terraform_data.upgrade_kubernetes,
+  #   talos_machine_configuration_apply.control_plane
+  # ]
+}
+
 resource "talos_machine_bootstrap" "this" {
   client_configuration = talos_machine_secrets.this.client_configuration
   endpoint             = local.talos_primary_endpoint
@@ -340,3 +361,4 @@ data "talos_cluster_health" "this" {
 
   depends_on = [data.http.kube_api_health]
 }
+
