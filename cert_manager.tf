@@ -48,18 +48,29 @@ data "helm_template" "cert_manager" {
   version      = var.cert_manager_helm_version
   kube_version = var.kubernetes_version
 
-  set {
-    name  = "crds.enabled"
-    value = true
-  }
-  set {
-    name  = "startupapicheck.enabled"
-    value = false
-  }
+  set = [
+    {
+      name  = "crds.enabled"
+      value = true
+    },
+    {
+      name  = "startupapicheck.enabled"
+      value = false
+    }
+  ]
 
   values = [
     yamlencode(
       merge(
+        {
+          config = {
+            featureGates = {
+              # Disable the use of Exact PathType in Ingress resources, to work around a bug in ingress-nginx
+              # https://github.com/kubernetes/ingress-nginx/issues/11176
+              ACMEHTTP01IngressPathTypeExact = !var.ingress_nginx_enabled
+            }
+          }
+        },
         local.cert_manager_values,
         {
           webhook = merge(

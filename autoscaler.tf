@@ -27,50 +27,52 @@ data "helm_template" "cluster_autoscaler" {
   version      = var.cluster_autoscaler_helm_version
   kube_version = var.kubernetes_version
 
-  set {
-    name  = "image.tag"
-    value = "v1.31.1"
-  }
-  set {
-    name  = "cloudProvider"
-    value = "hetzner"
-  }
-  set {
-    name  = "extraEnvSecrets.HCLOUD_TOKEN.name"
-    value = "hcloud"
-  }
-  set {
-    name  = "extraEnvSecrets.HCLOUD_TOKEN.key"
-    value = "token"
-  }
-  set {
-    name  = "extraEnv.HCLOUD_CLUSTER_CONFIG"
-    value = base64encode(jsonencode(local.cluster_autoscaler_cluster_config))
-  }
-  set {
-    name  = "extraEnv.HCLOUD_SERVER_CREATION_TIMEOUT"
-    value = 10
-  }
-  set {
-    name  = "extraEnv.HCLOUD_FIREWALL"
-    value = hcloud_firewall.this.id
-  }
-  set {
-    name  = "extraEnv.HCLOUD_SSH_KEY"
-    value = hcloud_ssh_key.this.id
-  }
-  set {
-    name  = "extraEnv.HCLOUD_PUBLIC_IPV4"
-    value = var.talos_public_ipv4_enabled
-  }
-  set {
-    name  = "extraEnv.HCLOUD_PUBLIC_IPV6"
-    value = var.talos_public_ipv6_enabled
-  }
-  set {
-    name  = "extraEnv.HCLOUD_NETWORK"
-    value = hcloud_network_subnet.autoscaler.network_id
-  }
+  set = [
+    {
+      name  = "image.tag"
+      value = "v1.31.1"
+    },
+    {
+      name  = "cloudProvider"
+      value = "hetzner"
+    },
+    {
+      name  = "extraEnvSecrets.HCLOUD_TOKEN.name"
+      value = "hcloud"
+    },
+    {
+      name  = "extraEnvSecrets.HCLOUD_TOKEN.key"
+      value = "token"
+    },
+    {
+      name  = "extraEnv.HCLOUD_CLUSTER_CONFIG"
+      value = base64encode(jsonencode(local.cluster_autoscaler_cluster_config))
+    },
+    {
+      name  = "extraEnv.HCLOUD_SERVER_CREATION_TIMEOUT"
+      value = 10
+    },
+    {
+      name  = "extraEnv.HCLOUD_FIREWALL"
+      value = hcloud_firewall.this.id
+    },
+    {
+      name  = "extraEnv.HCLOUD_SSH_KEY"
+      value = hcloud_ssh_key.this.id
+    },
+    {
+      name  = "extraEnv.HCLOUD_PUBLIC_IPV4"
+      value = var.talos_public_ipv4_enabled
+    },
+    {
+      name  = "extraEnv.HCLOUD_PUBLIC_IPV6"
+      value = var.talos_public_ipv6_enabled
+    },
+    {
+      name  = "extraEnv.HCLOUD_NETWORK"
+      value = hcloud_network_subnet.autoscaler.network_id
+    }
+  ]
 
   values = [
     yamlencode({

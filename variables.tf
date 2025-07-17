@@ -559,6 +559,40 @@ variable "cluster_autoscaler_config_patches" {
 }
 
 
+# Packer
+variable "packer_amd64_builder" {
+  type = object({
+    server_type     = optional(string, "cpx11")
+    server_location = optional(string, "fsn1")
+  })
+  default     = {}
+  description = "Configuration for the server used when building the Talos AMD64 image with Packer."
+
+  validation {
+    condition = contains([
+      "fsn1", "nbg1", "hel1", "ash", "hil", "sin"
+    ], var.packer_amd64_builder.server_location)
+    error_message = "The server_location must be one of: 'fsn1' (Falkenstein), 'nbg1' (Nuremberg), 'hel1' (Helsinki), 'ash' (Ashburn), 'hil' (Hillsboro), 'sin' (Singapore)."
+  }
+}
+
+variable "packer_arm64_builder" {
+  type = object({
+    server_type     = optional(string, "cax11")
+    server_location = optional(string, "fsn1")
+  })
+  default     = {}
+  description = "Configuration for the server used when building the Talos ARM64 image with Packer."
+
+  validation {
+    condition = contains([
+      "fsn1", "nbg1", "hel1", "ash", "hil", "sin"
+    ], var.packer_arm64_builder.server_location)
+    error_message = "The server_location must be one of: 'fsn1' (Falkenstein), 'nbg1' (Nuremberg), 'hel1' (Helsinki), 'ash' (Ashburn), 'hil' (Hillsboro), 'sin' (Singapore)."
+  }
+}
+
+
 # Talos
 variable "talos_version" {
   type        = string
@@ -771,6 +805,7 @@ variable "talos_extra_remote_manifests" {
   default     = null
 }
 
+
 # Talos Backup
 variable "talos_backup_version" {
   type        = string
@@ -902,7 +937,7 @@ variable "talos_ccm_enabled" {
 
 variable "talos_ccm_version" {
   type        = string
-  default     = "v1.9.1" # https://github.com/siderolabs/talos-cloud-controller-manager
+  default     = "v1.10.1" # https://github.com/siderolabs/talos-cloud-controller-manager
   description = "Specifies the version of the Talos Cloud Controller Manager (CCM) to use. This version controls cloud-specific integration features in the Talos operating system."
 }
 
@@ -979,7 +1014,7 @@ variable "hcloud_ccm_helm_chart" {
 
 variable "hcloud_ccm_helm_version" {
   type        = string
-  default     = "1.24.0"
+  default     = "1.26.0"
   description = "Version of the Hcloud CCM Helm chart to deploy."
 }
 
@@ -1005,7 +1040,7 @@ variable "hcloud_csi_helm_chart" {
 
 variable "hcloud_csi_helm_version" {
   type        = string
-  default     = "2.13.0"
+  default     = "2.16.0"
   description = "Version of the Hcloud CSI Helm chart to deploy."
 }
 
@@ -1037,7 +1072,7 @@ variable "longhorn_helm_chart" {
 
 variable "longhorn_helm_version" {
   type        = string
-  default     = "1.8.1"
+  default     = "1.8.2"
   description = "Version of the Longhorn Helm chart to deploy."
 }
 
@@ -1075,7 +1110,7 @@ variable "cilium_helm_chart" {
 
 variable "cilium_helm_version" {
   type        = string
-  default     = "1.17.3"
+  default     = "1.17.6"
   description = "Version of the Cilium Helm chart to deploy."
 }
 
@@ -1191,7 +1226,7 @@ variable "cert_manager_helm_chart" {
 
 variable "cert_manager_helm_version" {
   type        = string
-  default     = "v1.17.2"
+  default     = "v1.18.2"
   description = "Version of the Cert Manager Helm chart to deploy."
 }
 
@@ -1223,7 +1258,7 @@ variable "ingress_nginx_helm_chart" {
 
 variable "ingress_nginx_helm_version" {
   type        = string
-  default     = "4.12.2"
+  default     = "4.13.0"
   description = "Version of the Ingress NGINX Controller Helm chart to deploy."
 }
 
@@ -1488,7 +1523,7 @@ variable "prometheus_operator_crds_enabled" {
 
 variable "prometheus_operator_crds_version" {
   type        = string
-  default     = "v0.82.1" # https://github.com/prometheus-operator/prometheus-operator
+  default     = "v0.84.0" # https://github.com/prometheus-operator/prometheus-operator
   description = "Specifies the version of the Prometheus Operator Custom Resource Definitions (CRDs) to deploy."
 }
 

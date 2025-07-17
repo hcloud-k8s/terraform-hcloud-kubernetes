@@ -36,10 +36,12 @@ data "helm_template" "ingress_nginx" {
   version      = var.ingress_nginx_helm_version
   kube_version = var.kubernetes_version
 
-  set {
-    name  = "controller.admissionWebhooks.certManager.enabled"
-    value = true
-  }
+  set = [
+    {
+      name  = "controller.admissionWebhooks.certManager.enabled"
+      value = true
+    }
+  ]
 
   values = [
     yamlencode({

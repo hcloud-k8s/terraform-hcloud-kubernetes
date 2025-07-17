@@ -19,12 +19,17 @@ variable "talos_image_url" {
   type = string
 }
 
+variable "server_type" {
+  type    = string
+  default = "cpx11"
+}
+
 # Source for the Talos AMD64 image
 source "hcloud" "amd64_builder" {
   rescue       = "linux64"
   image        = "debian-12"
   location     = var.server_location
-  server_type  = "cpx11"
+  server_type  = var.server_type
   ssh_username = "root"
 
   snapshot_name = "Talos Linux AMD64 for ${var.cluster_name}"
