@@ -968,6 +968,48 @@ variable "hcloud_csi_enabled" {
   description = "Enables the Hetzner Container Storage Interface (CSI)."
 }
 
+variable "hcloud_csi_storage_class_encryption_enabled" {
+  type        = bool
+  default     = false
+  description = "Enable Hcloud CSI default storage class LUKS encryption."
+}
+
+variable "hcloud_csi_storage_class_encryption_key" {
+  type        = string
+  default     = null
+  description = "User defined Hcloud CSI default storage class LUKS encryption key."
+  sensitive   = true
+}
+
+variable "hcloud_csi_storage_class_reclaim_policy" {
+  type        = string
+  default     = "Delete"
+  description = "Hcloud CSI default storage class reclaim policy."
+  sensitive   = true
+}
+
+variable "hcloud_csi_storage_class_extra_parameters" {
+  type        = map(string)
+  default     = {}
+  description = "Hcloud CSI default storage class extra parameters."
+}
+
+variable "hcloud_csi_additional_storage_classes" {
+  description = "Additional user defined Hcloud CSI storage classes"
+  type        = list(object({
+    name                = string
+    defaultStorageClass = optional(bool, false)
+    reclaimPolicy       = optional(string, "Delete")
+    extraParameters     = optional(map(string), {})
+  }))
+  default = []
+}
+
+variable "hcloud_csi_volume_extra_labels" {
+  type        = map(string)
+  default     = {}
+  description = "Specifies default labels to apply to all newly created volumes. The value must be a map in the format key: value."
+}
 
 # Longhorn
 variable "longhorn_helm_repository" {
