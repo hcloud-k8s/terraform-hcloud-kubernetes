@@ -1,17 +1,30 @@
 locals {
   cluster_autoscaler_enabled = length(local.cluster_autoscaler_nodepools) > 0
 
-  cluster_autoscaler_cluster_config = local.cluster_autoscaler_enabled ? {
-    imagesForArch = {
-      arm64 = local.image_label_selector,
-      amd64 = local.image_label_selector
-    },
-    nodeConfigs = {
-      for nodepool in local.cluster_autoscaler_nodepools : "${var.cluster_name}-${nodepool.name}" => {
-        cloudInit = data.talos_machine_configuration.cluster_autoscaler[nodepool.name].machine_configuration,
-        labels    = nodepool.labels
-        taints    = nodepool.taints
-      }
+  cluster_autoscaler_nodepools_manifest = local.cluster_autoscaler_enabled ? {
+    apiVersion = "v1"
+    kind       = "Secret"
+    type       = "Opaque"
+    metadata = {
+      name      = "hcloud-cluster-autoscaler"
+      namespace = "kube-system"
+    }
+    data = {
+      nodepools = base64encode(jsonencode(
+        {
+          imagesForArch = {
+            arm64 = local.image_label_selector,
+            amd64 = local.image_label_selector
+          },
+          nodeConfigs = {
+            for nodepool in local.cluster_autoscaler_nodepools : "${var.cluster_name}-${nodepool.name}" => {
+              cloudInit = data.talos_machine_configuration.cluster_autoscaler[nodepool.name].machine_configuration,
+              labels    = nodepool.labels
+              taints    = nodepool.taints
+            }
+          }
+        }
+      ))
     }
   } : null
 }
@@ -41,8 +54,8 @@ data "helm_template" "cluster_autoscaler" {
       value = "token"
     },
     {
-      name  = "extraEnv.HCLOUD_CLUSTER_CONFIG"
-      value = base64encode(jsonencode(local.cluster_autoscaler_cluster_config))
+      name  = "extraEnv.HCLOUD_CLUSTER_CONFIG_FILE"
+      value = "/data/autoscaler/hcloud/nodepools"
     },
     {
       name  = "extraEnv.HCLOUD_SERVER_CREATION_TIMEOUT"
@@ -107,6 +120,18 @@ data "helm_template" "cluster_autoscaler" {
           region       = np.location
         }
       ]
+      extraVolumeSecrets = {
+        "hcloud-nodepools" = {
+          name      = "hcloud-cluster-autoscaler"
+          mountPath = "/data/autoscaler/hcloud"
+          items = [
+            {
+              key  = "nodepools"
+              path = "nodepools"
+            }
+          ]
+        }
+      }
     }),
     yamlencode(var.cluster_autoscaler_helm_values)
   ]
@@ -120,6 +145,10 @@ data "helm_template" "cluster_autoscaler" {
 locals {
   cluster_autoscaler_manifest = local.cluster_autoscaler_enabled ? {
     name     = "cluster-autoscaler"
-    contents = data.helm_template.cluster_autoscaler[0].manifest
+    contents = <<-EOF
+      ${data.helm_template.cluster_autoscaler[0].manifest}
+      ---
+      ${yamlencode(local.cluster_autoscaler_nodepools_manifest)}
+    EOF
   } : null
 }
