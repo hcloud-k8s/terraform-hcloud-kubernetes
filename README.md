@@ -828,6 +828,183 @@ talos_siderolabs_discovery_service_enabled = true
 For more details, refer to the [official Talos discovery guide](https://www.talos.dev/latest/talos-guides/discovery/).
 </details>
 
+<!-- Kubernetes RBAC -->
+<details>
+<summary><b>Kubernetes RBAC</b></summary>
+
+This module allows you to create custom Kubernetes RBAC (Role-Based Access Control) roles and cluster roles that define specific permissions for users and groups. RBAC controls what actions users can perform on which Kubernetes resources.  
+These custom roles can be used independently or combined with OIDC group mappings to automatically assign permissions based on user group membership from your identity provider.
+
+#### Example Configuration
+
+##### Cluster Roles (`rbac_cluster_roles`)
+
+```hcl
+rbac_cluster_roles = {
+  "cluster-role-name" = {
+    rules = [
+      {
+        api_groups = [""]                      # Core API group (empty string for core resources)
+        resources  = ["nodes"]                 # Cluster-wide resources this role can access
+        verbs      = ["get", "list", "watch"]  # Actions allowed on these resources
+      }
+    ]
+  }
+}
+```
+
+##### Namespaced Roles (`rbac_roles`)
+
+```hcl
+rbac_roles = {
+  "role-name" = {
+    namespace = "target-namespace"             # Namespace where the role will be created
+    rules = [
+      {
+        api_groups = [""]                      # Core API group (empty string for core resources)
+        resources  = ["pods", "services"]      # Resources this role can access
+        verbs      = ["get", "list", "watch"]  # Actions allowed on these resources
+      }
+    ]
+  }
+}
+```
+
+</details>
+
+<!-- OIDC Cluster Authentication -->
+<details>
+<summary><b>OIDC Cluster Authentication</b></summary>
+
+The Kubernetes API server supports OIDC (OpenID Connect) authentication, allowing integration with external identity providers like Keycloak, Auth0, Authentik, Zitadel, etc.
+When enabled, users can authenticate using their existing organizational credentials instead of managing separate Kubernetes certificates or tokens.
+
+OIDC authentication works by validating JWT tokens issued by your identity provider, extracting user information and group memberships, and mapping them to Kubernetes RBAC roles.
+
+#### Example Configuration
+
+```hcl
+# OIDC Configuration
+oidc_enabled        = true                               # Enable OIDC authentication
+oidc_issuer_url     = "https://your-oidc-provider.com"   # Your OIDC provider issuer URL
+oidc_client_id      = "your-client-id"                   # Client ID registered in your OIDC provider
+oidc_username_claim = "preferred_username"               # OIDC JWT claim to extract username from
+oidc_groups_claim   = "groups"                           # OIDC JWT claim to extract user groups from
+oidc_groups_prefix  = "oidc:"                            # Prefix added to group names in K8s to avoid conflicts
+
+# Map OIDC groups to Kubernetes roles and cluster roles
+oidc_group_mappings = {                                  # Each key must match a OIDC provider group
+  "cluster-admins-group" = {                                   
+    cluster_roles = ["cluster-admin"]                    # Grant cluster-admin access
+  }
+  "developers-group" = {
+    cluster_roles = ["view"]                             # Grant cluster-wide view access
+    roles = [                                            # Grant namespace scoped roles
+      {
+        name      = "developer-role"                     # Custom role name
+        namespace = "development"                        # Namespace where role applies
+      }
+    ]
+  }
+}
+```
+
+#### Client Configuration with kubelogin
+
+Once OIDC is configured on your cluster, you'll need to configure your local kubectl to authenticate using OIDC tokens. This requires the [kubelogin](https://github.com/int128/kubelogin) plugin.
+
+##### Install kubelogin
+
+```bash
+# Homebrew (macOS and Linux)
+brew install kubelogin
+
+# Krew (macOS, Linux, Windows and ARM)
+kubectl krew install oidc-login
+
+# Chocolatey (Windows)
+choco install kubelogin
+```
+
+#### Test OIDC Authentication
+
+First, verify that your OIDC provider is returning proper JWT tokens. Replace the placeholder values with your actual OIDC configuration:
+
+```bash
+kubectl oidc-login setup \
+  --oidc-issuer-url=https://your-oidc-provider.com \
+  --oidc-client-id=your-client-id \
+  --oidc-client-secret=your-client-secret \           
+  --oidc-extra-scope=openid,email,profile             # Change the scopes according to your IDP
+```
+
+This will open your browser for authentication. After successful login, you should see a JWT token in your terminal that looks like:
+
+```json
+{
+  "aud": "your-client-id",
+  "email": "user@example.com",
+  "email_verified": true,
+  "exp": 1749867571,
+  "groups": [
+    "developers",
+    "kubernetes-users"
+  ],
+  "iat": 1749863971,
+  "iss": "https://your-oidc-provider.com",
+  "nonce": "random-nonce-string",
+  "sub": "user-unique-identifier"
+}
+```
+
+Verify that:
+
+- The `groups` array contains your expected groups
+- The `email` field matches your user email
+- `email_verified` is `true` (required by K8s)
+
+#### Configure kubectl
+
+Add a new user to your `~/.kube/config` file:
+
+```yaml
+users:
+- name: oidc-user
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1beta1
+      command: kubectl
+      args:
+        - oidc-login
+        - get-token
+        - --oidc-issuer-url=https://your-oidc-provider.com
+        - --oidc-client-id=your-client-id
+        - --oidc-client-secret=your-client-secret
+        - --oidc-extra-scope=groups
+        - --oidc-extra-scope=email
+        - --oidc-extra-scope=name
+```
+
+Update your context to use the new OIDC user:
+
+```yaml
+contexts:
+- context:
+    cluster: your-cluster
+    namespace: default
+    user: oidc-user          # Changed from certificate-based user
+  name: oidc@your-cluster    # Updated context name
+```
+
+Now you can switch to the OIDC context and authenticate using your identity provider:
+
+```bash
+kubectl config use-context your-cluster-oidc
+kubectl get pods  # This will trigger OIDC authentication
+```
+
+</details>
+
 <!-- Lifecycle -->
 ## :recycle: Lifecycle
 The [Talos Terraform Provider](https://registry.terraform.io/providers/siderolabs/talos) does not support declarative upgrades of Talos or Kubernetes versions. This module compensates for these limitations using `talosctl` to implement the required functionalities. Any minor or major upgrades to Talos and Kubernetes will result in a major version change of this module. Please be aware that downgrades are typically neither supported nor tested.
