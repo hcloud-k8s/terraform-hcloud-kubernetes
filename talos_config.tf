@@ -1,6 +1,14 @@
 locals {
   allow_scheduling_on_control_plane = ((local.worker_sum + local.cluster_autoscaler_max_sum) == 0)
 
+  kube_oidc_configuration = var.oidc_enabled ? {
+    "oidc-issuer-url"     = var.oidc_issuer_url
+    "oidc-client-id"      = var.oidc_client_id
+    "oidc-username-claim" = var.oidc_username_claim
+    "oidc-groups-claim"   = var.oidc_groups_claim
+    "oidc-groups-prefix"  = var.oidc_groups_prefix
+  } : {}
+
   # Kubernetes Manifests for Talos
   talos_inline_manifests = concat(
     [local.hcloud_secret_manifest],
@@ -13,7 +21,9 @@ locals {
     local.cert_manager_manifest != null ? [local.cert_manager_manifest] : [],
     local.ingress_nginx_manifest != null ? [local.ingress_nginx_manifest] : [],
     local.cluster_autoscaler_manifest != null ? [local.cluster_autoscaler_manifest] : [],
-    var.talos_extra_inline_manifests != null ? var.talos_extra_inline_manifests : []
+    var.talos_extra_inline_manifests != null ? var.talos_extra_inline_manifests : [],
+    local.rbac_manifest != null ? [local.rbac_manifest] : [],
+    local.oidc_manifest != null ? [local.oidc_manifest] : []
   )
   talos_manifests = concat(
     var.talos_ccm_enabled ? ["https://raw.githubusercontent.com/siderolabs/talos-cloud-controller-manager/${var.talos_ccm_version}/docs/deploy/cloud-controller-manager-daemonset.yml"] : [],
@@ -271,6 +281,7 @@ locals {
           certSANs         = local.certificate_san,
           extraArgs = merge(
             { "enable-aggregator-routing" = true },
+            local.kube_oidc_configuration,
             var.kube_api_extra_args
           )
         }
@@ -620,12 +631,13 @@ data "talos_machine_configuration" "control_plane" {
   kubernetes_version = var.kubernetes_version
   machine_type       = "controlplane"
   machine_secrets    = talos_machine_secrets.this.machine_secrets
-  config_patches = [
-    yamlencode(local.control_plane_talos_config_patch[each.key]),
-    yamlencode(var.control_plane_config_patches)
-  ]
-  docs     = false
-  examples = false
+  docs               = false
+  examples           = false
+
+  config_patches = concat(
+    [yamlencode(local.control_plane_talos_config_patch[each.key])],
+    [for patch in var.control_plane_config_patches : yamlencode(patch)]
+  )
 }
 
 data "talos_machine_configuration" "worker" {
@@ -637,12 +649,13 @@ data "talos_machine_configuration" "worker" {
   kubernetes_version = var.kubernetes_version
   machine_type       = "worker"
   machine_secrets    = talos_machine_secrets.this.machine_secrets
-  config_patches = [
-    yamlencode(local.worker_talos_config_patch[each.key]),
-    yamlencode(var.worker_config_patches)
-  ]
-  docs     = false
-  examples = false
+  docs               = false
+  examples           = false
+
+  config_patches = concat(
+    [yamlencode(local.worker_talos_config_patch[each.key])],
+    [for patch in var.worker_config_patches : yamlencode(patch)]
+  )
 }
 
 data "talos_machine_configuration" "worker_extend" {
@@ -671,11 +684,12 @@ data "talos_machine_configuration" "cluster_autoscaler" {
   kubernetes_version = var.kubernetes_version
   machine_type       = "worker"
   machine_secrets    = talos_machine_secrets.this.machine_secrets
-  config_patches = [
-    yamlencode(local.autoscaler_nodepool_talos_config_patch[each.key]),
-    yamlencode(var.cluster_autoscaler_config_patches)
-  ]
-  docs     = false
-  examples = false
+  docs               = false
+  examples           = false
+
+  config_patches = concat(
+    [yamlencode(local.autoscaler_nodepool_talos_config_patch[each.key])],
+    [for patch in var.cluster_autoscaler_config_patches : yamlencode(patch)]
+  )
 }
 

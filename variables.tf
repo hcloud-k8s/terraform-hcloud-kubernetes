@@ -322,7 +322,7 @@ variable "control_plane_nodepools" {
 }
 
 variable "control_plane_config_patches" {
-  type        = list(any)
+  type        = any
   default     = []
   description = "List of configuration patches applied to the Control Plane nodes."
 }
@@ -469,7 +469,7 @@ variable "extended_worker_nodepools" {
 }
 
 variable "worker_config_patches" {
-  type        = list(any)
+  type        = any
   default     = []
   description = "List of configuration patches applied to the Worker nodes."
 }
@@ -490,7 +490,7 @@ variable "cluster_autoscaler_helm_chart" {
 
 variable "cluster_autoscaler_helm_version" {
   type        = string
-  default     = "9.45.1"
+  default     = "9.46.6"
   description = "Version of the Cluster Autoscaler Helm chart to deploy."
 }
 
@@ -553,7 +553,7 @@ variable "cluster_autoscaler_nodepools" {
 }
 
 variable "cluster_autoscaler_config_patches" {
-  type        = list(any)
+  type        = any
   default     = []
   description = "List of configuration patches applied to the Cluster Autoscaler nodes."
 }
@@ -596,7 +596,7 @@ variable "packer_arm64_builder" {
 # Talos
 variable "talos_version" {
   type        = string
-  default     = "v1.8.4"
+  default     = "v1.9.6"
   description = "Specifies the version of Talos to be used in generated machine configurations."
 }
 
@@ -885,7 +885,7 @@ variable "talos_backup_schedule" {
 # Kubernetes
 variable "kubernetes_version" {
   type        = string
-  default     = "v1.31.4"
+  default     = "v1.32.4"
   description = "Specifies the Kubernetes version to deploy."
 }
 
@@ -941,6 +941,114 @@ variable "talos_ccm_version" {
   description = "Specifies the version of the Talos Cloud Controller Manager (CCM) to use. This version controls cloud-specific integration features in the Talos operating system."
 }
 
+# Kubernetes OIDC Configuration
+variable "oidc_enabled" {
+  description = "Enable OIDC authentication for Kubernetes API server"
+  type        = bool
+  default     = false
+}
+
+variable "oidc_issuer_url" {
+  description = "URL of the OIDC provider (e.g., https://your-oidc-provider.com). Required when oidc_enabled is true"
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.oidc_enabled == false || (var.oidc_enabled == true && var.oidc_issuer_url != "")
+    error_message = "oidc_issuer_url is required when oidc_enabled is true."
+  }
+}
+
+variable "oidc_client_id" {
+  description = "OIDC client ID that all tokens must be issued for. Required when oidc_enabled is true"
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.oidc_enabled == false || (var.oidc_enabled == true && var.oidc_client_id != "")
+    error_message = "oidc_client_id is required when oidc_enabled is true."
+  }
+}
+
+variable "oidc_username_claim" {
+  description = "JWT claim to use as the username"
+  type        = string
+  default     = "sub"
+}
+
+variable "oidc_groups_claim" {
+  description = "JWT claim to use as the user's groups"
+  type        = string
+  default     = "groups"
+}
+
+variable "oidc_groups_prefix" {
+  description = "Prefix prepended to group claims to prevent clashes with existing names"
+  type        = string
+  default     = "oidc:"
+}
+
+variable "oidc_group_mappings" {
+  description = "List of OIDC groups mapped to Kubernetes roles and cluster roles"
+  type = list(object({
+    group         = string
+    cluster_roles = optional(list(string), [])
+    roles = optional(list(object({
+      name      = string
+      namespace = string
+    })), [])
+  }))
+  default = []
+
+  validation {
+    condition = length(var.oidc_group_mappings) == length(distinct([
+      for mapping in var.oidc_group_mappings : mapping.group
+    ]))
+    error_message = "OIDC group names must be unique. Duplicate group names found."
+  }
+}
+
+# Kubernetes RBAC
+variable "rbac_roles" {
+  description = "List of custom Kubernetes roles to create"
+  type = list(object({
+    name      = string
+    namespace = string
+    rules = list(object({
+      api_groups = list(string)
+      resources  = list(string)
+      verbs      = list(string)
+    }))
+  }))
+  default = []
+
+  validation {
+    condition = length(var.rbac_roles) == length(distinct([
+      for role in var.rbac_roles : role.name
+    ]))
+    error_message = "RBAC role names must be unique. Duplicate role names found."
+  }
+}
+
+variable "rbac_cluster_roles" {
+  description = "List of custom Kubernetes cluster roles to create"
+  type = list(object({
+    name = string
+    rules = list(object({
+      api_groups = list(string)
+      resources  = list(string)
+      verbs      = list(string)
+    }))
+  }))
+  default = []
+
+  validation {
+    condition = length(var.rbac_cluster_roles) == length(distinct([
+      for role in var.rbac_cluster_roles : role.name
+    ]))
+    error_message = "RBAC cluster role names must be unique. Duplicate cluster role names found."
+  }
+}
 
 # Hetzner Cloud
 variable "hcloud_token" {
@@ -1056,6 +1164,38 @@ variable "hcloud_csi_enabled" {
   description = "Enables the Hetzner Container Storage Interface (CSI)."
 }
 
+variable "hcloud_csi_encryption_passphrase" {
+  type        = string
+  default     = null
+  description = "Passphrase for encrypting volumes created by the Hcloud CSI driver. If not provided, a random passphrase will be generated. The passphrase must be 8-512 characters long and contain only printable 7-bit ASCII characters."
+  sensitive   = true
+
+  validation {
+    condition     = var.hcloud_csi_encryption_passphrase == null || can(regex("^[ -~]{8,512}$", var.hcloud_csi_encryption_passphrase))
+    error_message = "The passphrase must be 8-512 characters long and contain only printable 7-bit ASCII characters (character codes 32-126)."
+  }
+}
+
+variable "hcloud_csi_storage_classes" {
+  description = "User defined Hcloud CSI storage classes"
+  type = list(object({
+    name                = string
+    encrypted           = bool
+    reclaimPolicy       = optional(string, "Delete")
+    defaultStorageClass = optional(bool, false)
+    extraParameters     = optional(map(string), {})
+  }))
+  default = [
+    { name = "hcloud-volumes", encrypted = false, defaultStorageClass = true }
+  ]
+}
+
+variable "hcloud_csi_volume_extra_labels" {
+  type        = map(string)
+  default     = {}
+  description = "Specifies default labels to apply to all newly created volumes. The value must be a map in the format key: value."
+}
+
 
 # Longhorn
 variable "longhorn_helm_repository" {
@@ -1086,6 +1226,12 @@ variable "longhorn_enabled" {
   type        = bool
   default     = false
   description = "Enable or disable Longhorn integration"
+}
+
+variable "longhorn_default_storage_class" {
+  type        = bool
+  default     = false
+  description = "Set Longhorn as the default storage class."
 }
 
 
@@ -1124,6 +1270,55 @@ variable "cilium_encryption_enabled" {
   type        = bool
   default     = true
   description = "Enables transparent network encryption using Cilium within the Kubernetes cluster. When enabled, this feature provides added security for network traffic."
+}
+
+variable "cilium_encryption_type" {
+  type        = string
+  default     = "wireguard"
+  description = "Type of encryption to use for Cilium network encryption. Options: 'wireguard' or 'ipsec'."
+
+  validation {
+    condition     = contains(["wireguard", "ipsec"], var.cilium_encryption_type)
+    error_message = "Encryption type must be either 'wireguard' or 'ipsec'."
+  }
+}
+
+variable "cilium_ipsec_algorithm" {
+  type        = string
+  default     = "rfc4106(gcm(aes))"
+  description = "Cilium IPSec key algorithm."
+}
+
+variable "cilium_ipsec_key_size" {
+  type        = number
+  default     = 256
+  description = "AES key size in bits for IPSec encryption (128, 192, or 256). Only used when cilium_encryption_type is 'ipsec'."
+
+  validation {
+    condition     = contains([128, 192, 256], var.cilium_ipsec_key_size)
+    error_message = "IPSec key size must be 128, 192 or 256 bits."
+  }
+}
+
+variable "cilium_ipsec_key_id" {
+  type        = number
+  default     = 1
+  description = "IPSec key ID (1-15, increment manually for rotation). Only used when cilium_encryption_type is 'ipsec'."
+
+  validation {
+    condition     = var.cilium_ipsec_key_id >= 1 && var.cilium_ipsec_key_id <= 15 && floor(var.cilium_ipsec_key_id) == var.cilium_ipsec_key_id
+    error_message = "The IPSec key_id must be between 1 and 15."
+  }
+}
+
+variable "cilium_bpf_datapath_mode" {
+  type        = string
+  default     = "veth"
+  description = "Mode for Pod devices for the core datapath. Allowed values: veth, netkit, netkit-l2. Warning: Netkit is still in beta and should not be used together with IPsec encryption!"
+  validation {
+    condition     = contains(["veth", "netkit", "netkit-l2"], var.cilium_bpf_datapath_mode)
+    error_message = "cilium_bpf_datapath_mode must be one of: veth, netkit, netkit-l2."
+  }
 }
 
 variable "cilium_egress_gateway_enabled" {
@@ -1182,7 +1377,7 @@ variable "metrics_server_helm_chart" {
 
 variable "metrics_server_helm_version" {
   type        = string
-  default     = "3.12.2"
+  default     = "3.13.0"
   description = "Version of the Metrics Server Helm chart to deploy."
 }
 
@@ -1512,7 +1707,6 @@ variable "ingress_load_balancer_pools" {
     error_message = "The rdns_ipv6 must be a valid IPv6 reverse DNS domain: each segment must start and end with a letter or number, can contain hyphens, and each segment must be no longer than 63 characters. Supports dynamic substitution with placeholders: {{ cluster-domain }}, {{ cluster-name }}, {{ hostname }}, {{ id }}, {{ ip-labels }}, {{ ip-type }}, {{ pool }}, {{ role }}."
   }
 }
-
 
 # Miscellaneous
 variable "prometheus_operator_crds_enabled" {

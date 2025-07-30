@@ -1,6 +1,6 @@
 <div align="center">
 
-  <img src="https://avatars.githubusercontent.com/u/182015181" alt="logo" width="200" height="auto" />
+  <img src="https://avatars.githubusercontent.com/u/182015181" alt="logo" width="225" height="auto" />
   <h1>Hcloud Kubernetes</h1>
 
   <p>
@@ -43,7 +43,7 @@
 
 <!-- About the Project -->
 ## :star2: About the Project
-Hcloud Kubernetes is a Terraform module for deploying a fully declarative, managed Kubernetes cluster on Hetzner Cloud. It utilizes Talos, a secure, immutable, and minimal operating system specifically designed for Kubernetes, featuring a streamlined architecture with just 12 binaries and managed entirely through an API.
+Hcloud Kubernetes is a Terraform module for deploying a fully declarative, managed Kubernetes cluster on Hetzner Cloud. It utilizes Talos, a secure, immutable, and minimal operating system specifically designed for Kubernetes, featuring a streamlined architecture with only a handful of binaries and shared libraries. Just enough to run containerd and a small set of system services.
 
 This project is committed to production-grade configuration and lifecycle management, ensuring all components are set up for high availability. It includes a curated selection of widely used and officially recognized Kubernetes components. If you encounter any issues, suboptimal settings, or missing elements, please file an [issue](https://github.com/hcloud-k8s/terraform-hcloud-kubernetes/issues) to help us improve this project.
 
@@ -126,7 +126,7 @@ Talos Linux is a secure, minimal, and immutable OS for Kubernetes, removing SSH 
 
 **Firewall Protection:** This module uses [Hetzner Cloud Firewalls](https://docs.hetzner.com/cloud/firewalls/) to manage external access to nodes. For internal pod-to-pod communication, support for Kubernetes Network Policies is provided through [Cilium CNI](https://docs.cilium.io/en/stable/network/kubernetes/policy/).
 
-**Encryption in Transit:** In this module, all pod network traffic is encrypted by default using [WireGuard via Cilium CNI](https://cilium.io/use-cases/transparent-encryption/). It includes automatic key rotation and efficient in-kernel encryption, covering all traffic types.
+**Encryption in Transit:** In this module, all pod network traffic is encrypted by default using [WireGuard (Default) or IPSec via Cilium CNI](https://cilium.io/use-cases/transparent-encryption/). It includes automatic key rotation and efficient in-kernel encryption, covering all traffic types.
 
 **Encryption at Rest:** In this module, the [STATE](https://www.talos.dev/latest/learn-more/architecture/#file-system-partitions) and [EPHEMERAL](https://www.talos.dev/latest/learn-more/architecture/#file-system-partitions) partitions are encrypted by default with [Talos Disk Encryption](https://www.talos.dev/latest/talos-guides/configuration/disk-encryption/) using LUKS2. Each node is secured with individual encryption keys derived from its unique `nodeID`.
 
@@ -349,6 +349,49 @@ cluster_autoscaler_helm_values = {
 ```
 </details>
 
+
+<!-- Cilium Advanced Configuration -->
+<details>
+<summary><b>Cilium Advanced Configuration</b></summary>
+
+#### Cilium Transparent Encryption
+
+This module enables [Cilium Transparent Encryption](https://cilium.io/use-cases/transparent-encryption/) feature by default.  
+
+All pod network traffic is encrypted using WireGuard (Default) or  protocols, includes automatic key rotation and efficient in-kernel encryption, covering all traffic types.
+
+:bulb: Although WireGuard is the default option, Hetzner Cloud VMs supports AES-NI instruction set, making IPSec encryption more CPU-efficient compared to WireGuard. Consider enabling IPSec for CPU savings through hardware acceleration.
+
+IPSec mode supports RFC4106 AES-GCM encryption with 128, 192 and 256 bits key sizes.
+
+
+**:warning: IPSec encryption has the following limitations:**
+
+- No transparent encryption when chaining Cilium with other CNI plugins
+- Host Policies not supported with IPSec
+- Incompatible with BPF Host Routing (automatically disabled on switch)
+- IPv6-only clusters not supported
+- Maximum 65,535 nodes per cluster/clustermesh
+- Single CPU core limitation per IPSec tunnel may affect high-throughput scenarios
+
+*Source: [Cilium Documentation](https://docs.cilium.io/en/stable/security/network/encryption-ipsec/#limitations)*
+
+Example `kubernetes.tf` configuration:
+
+```hcl
+cilium_encryption_enabled = true                # Default true
+cilium_encryption_type    = "wireguard"         # wireguard (Default) | ipsec
+cilium_ipsec_algorithm    = "rfc4106(gcm(aes))" # IPSec AES key algorithm (Default rfc4106(gcm(aes)))
+cilium_ipsec_key_size     = 256                 # IPSec AES key size (Default 256)
+cilium_ipsec_key_id       = 1                   # IPSec key ID (Default 1)
+```
+
+##### IPSec Key Rotation
+
+Keys automatically rotate when `cilium_ipsec_key_id` is incremented (1-15 range, resets to 1 after 15).
+
+</details>
+
 <!-- Egress Gateway -->
 <details>
 <summary><b>Egress Gateway</b></summary>
@@ -540,7 +583,84 @@ Here is a table with more example calculations:
 | **10.0.0.0/19** | /28 (16 IPs)     | 10.0.8.0/22  (64) | 10.0.12.0/22 (1024) | 10.0.16.0/20 (16)   |
 | **10.0.0.0/20** | /29 (8 IPs)      | 10.0.4.0/23  (64) | 10.0.6.0/23 (512)   | 10.0.8.0/21 (8)     |
 | **10.0.0.0/21** | /30 (4 IPs)      | 10.0.2.0/24  (64) | 10.0.3.0/24 (256)   | 10.0.4.0/22 (4)     |
+ 
 </details>
+
+
+<!-- Storage Configuration-->
+<details>
+<summary><b>Storage Configuration</b></summary>
+
+#### Hetzner Cloud CSI
+
+The Hetzner Cloud Container Storage Interface (CSI) driver can be flexibly configured through the `hcloud_csi_storage_classes` variable. You can define multiple storage classes for your cluster:
+
+* **name:** The name of the StorageClass (string, required).
+* **encrypted:** Enable LUKS encryption for volumes (bool, required).
+* **defaultStorageClass:** Set this class as the default (optional, bool, defaults to `false`).
+* **reclaimPolicy:** The Kubernetes reclaim policy (`Delete` or `Retain`, optional, defaults to `Delete`).
+* **extraParameters:** Additional parameters for the StorageClass (optional map).
+
+**Example:**
+
+```hcl
+hcloud_csi_storage_classes = [
+  {
+    name                = "hcloud-volumes"
+    encrypted           = false
+    defaultStorageClass = true
+  },
+  {
+    name                = "hcloud-volumes-encrypted-xfs"
+    encrypted           = true
+    reclaimPolicy       = "Retain"
+    extraParameters     = {
+      "csi.storage.k8s.io/fstype" = "xfs"
+      "fsFormatOption"            = "-i nrext64=1"
+    }
+  }
+]
+```
+
+**Other settings:**
+
+* **hcloud\_csi\_encryption\_passphrase:**
+  Optionally provide a custom encryption passphrase for LUKS-encrypted storage classes.
+
+  ```hcl
+  hcloud_csi_encryption_passphrase = "<secret-passphrase>"
+  ```
+
+**Storage Class Immutability:**
+StorageClasses created by the Hcloud CSI driver are immutable. To change parameters after creation, you must either edit the StorageClass directly with `kubectl`, or delete it from both Terraform state and Kubernetes, then let this module recreate it.
+
+For more details, see the [HCloud CSI Driver documentation](https://github.com/hetznercloud/csi-driver/tree/main/docs/kubernetes).
+
+
+#### Longhorn
+
+Longhorn is a lightweight, reliable, and easy-to-use distributed block storage system for Kubernetes.
+It is fully independent from the Hetzner Cloud CSI driver.
+
+You can enable Longhorn and configure it as the default StorageClass for your cluster via module variables:
+
+* **Enable Longhorn:**
+  Set `longhorn_enabled` to `true` to deploy Longhorn in your cluster.
+
+* **Default StorageClass:**
+  Set `longhorn_default_storage_class` to `true` if you want Longhorn to be the default StorageClass.
+
+**Example:**
+
+```hcl
+longhorn_enabled               = true
+longhorn_default_storage_class = true
+```
+
+For more information about Longhorn, see the [Longhorn documentation](https://longhorn.io/docs/).
+
+</details>
+
 
 <!-- Talos Backup -->
 <details>
@@ -708,6 +828,187 @@ talos_siderolabs_discovery_service_enabled = true
 For more details, refer to the [official Talos discovery guide](https://www.talos.dev/latest/talos-guides/discovery/).
 </details>
 
+<!-- Kubernetes RBAC -->
+<details>
+<summary><b>Kubernetes RBAC</b></summary>
+
+This module allows you to create custom Kubernetes RBAC (Role-Based Access Control) roles and cluster roles that define specific permissions for users and groups. RBAC controls what actions users can perform on which Kubernetes resources.  
+These custom roles can be used independently or combined with OIDC group mappings to automatically assign permissions based on user group membership from your identity provider.
+
+#### Example Configuration
+
+##### Cluster Roles (`rbac_cluster_roles`)
+
+```hcl
+rbac_cluster_roles = [
+  {
+    name  = my-cluster-role                    # ClusterRole name
+    rules = [
+      {
+        api_groups = [""]                      # Core API group (empty string for core resources)
+        resources  = ["nodes"]                 # Cluster-wide resources this role can access
+        verbs      = ["get", "list", "watch"]  # Actions allowed on these resources
+      }
+    ]
+  }
+]
+```
+
+##### Namespaced Roles (`rbac_roles`)
+
+```hcl
+rbac_roles = [
+  {
+    name      = "my-role"                      # Role name
+    namespace = "target-namespace"             # Namespace where the role will be created
+    rules = [
+      {
+        api_groups = [""]                      # Core API group (empty string for core resources)
+        resources  = ["pods", "services"]      # Resources this role can access
+        verbs      = ["get", "list", "watch"]  # Actions allowed on these resources
+      }
+    ]
+  }
+]
+```
+
+</details>
+
+<!-- OIDC Cluster Authentication -->
+<details>
+<summary><b>OIDC Cluster Authentication</b></summary>
+
+The Kubernetes API server supports OIDC (OpenID Connect) authentication, allowing integration with external identity providers like Keycloak, Auth0, Authentik, Zitadel, etc.
+When enabled, users can authenticate using their existing organizational credentials instead of managing separate Kubernetes certificates or tokens.
+
+OIDC authentication works by validating JWT tokens issued by your identity provider, extracting user information and group memberships, and mapping them to Kubernetes RBAC roles.
+
+#### Example Configuration
+
+```hcl
+# OIDC Configuration
+oidc_enabled        = true                               # Enable OIDC authentication
+oidc_issuer_url     = "https://your-oidc-provider.com"   # Your OIDC provider issuer URL
+oidc_client_id      = "your-client-id"                   # Client ID registered in your OIDC provider
+oidc_username_claim = "preferred_username"               # OIDC JWT claim to extract username from
+oidc_groups_claim   = "groups"                           # OIDC JWT claim to extract user groups from
+oidc_groups_prefix  = "oidc:"                            # Prefix added to group names in K8s to avoid conflicts
+
+# Map OIDC groups to Kubernetes roles and cluster roles
+oidc_group_mappings = [                                  # List of OIDC group mappings
+  {
+    group         = "cluster-admins-group"               # OIDC provider group name
+    cluster_roles = ["cluster-admin"]                    # Grant cluster-admin access
+  },
+  {
+    group         = "developers-group"                   # OIDC provider group name
+    cluster_roles = ["view"]                             # Grant cluster-wide view access
+    roles = [                                            # Grant namespace scoped roles
+      {
+        name      = "developer-role"                     # Custom role name
+        namespace = "development"                        # Namespace where role applies
+      }
+    ]
+  }
+]
+```
+
+#### Client Configuration with kubelogin
+
+Once OIDC is configured in your cluster, you'll need to configure your local kubectl to authenticate using OIDC tokens. This requires the [kubelogin](https://github.com/int128/kubelogin) plugin.
+
+##### Install kubelogin
+
+```bash
+# Homebrew (macOS and Linux)
+brew install kubelogin
+
+# Krew (macOS, Linux, Windows and ARM)
+kubectl krew install oidc-login
+
+# Chocolatey (Windows)
+choco install kubelogin
+```
+
+#### Test OIDC Authentication
+
+First, verify that your OIDC provider is returning proper JWT tokens. Replace the placeholder values with your actual OIDC configuration:
+
+```bash
+kubectl oidc-login setup \
+  --oidc-issuer-url=https://your-oidc-provider.com \
+  --oidc-client-id=your-client-id \
+  --oidc-client-secret=your-client-secret \           
+  --oidc-extra-scope=openid,email,profile             # Add or change the scopes according to your IDP
+```
+
+This will open your browser for authentication. After successful login, you should see a JWT token in your terminal that looks like:
+
+```json
+{
+  "aud": "your-client-id",
+  "email": "user@example.com",
+  "email_verified": true,
+  "exp": 1749867571,
+  "groups": [
+    "developers",
+    "kubernetes-users"
+  ],
+  "iat": 1749863971,
+  "iss": "https://your-oidc-provider.com",
+  "nonce": "random-nonce-string",
+  "sub": "user-unique-identifier"
+}
+```
+
+Verify that:
+
+- The `groups` array contains your expected groups
+- The `email` field matches your user email
+- `email_verified` is `true` (required by K8s)
+
+#### Configure kubectl
+
+Add a new user to your `~/.kube/config` file:
+
+```yaml
+users:
+- name: oidc-user
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1beta1
+      command: kubectl
+      args:
+        - oidc-login
+        - get-token
+        - --oidc-issuer-url=https://your-oidc-provider.com
+        - --oidc-client-id=your-client-id
+        - --oidc-client-secret=your-client-secret
+        - --oidc-extra-scope=groups
+        - --oidc-extra-scope=email
+        - --oidc-extra-scope=name                           # Add or change the scopes according to your IDP
+```
+
+Update your context to use the new OIDC user:
+
+```yaml
+contexts:
+- context:
+    cluster: your-cluster
+    namespace: default
+    user: oidc-user          # Changed from certificate-based user
+  name: oidc@your-cluster    # Updated context name
+```
+
+Now you can switch to the OIDC context and authenticate using your identity provider:
+
+```bash
+kubectl config use-context your-cluster-oidc
+kubectl get pods  # This will trigger OIDC authentication
+```
+
+</details>
+
 <!-- Lifecycle -->
 ## :recycle: Lifecycle
 The [Talos Terraform Provider](https://registry.terraform.io/providers/siderolabs/talos) does not support declarative upgrades of Talos or Kubernetes versions. This module compensates for these limitations using `talosctl` to implement the required functionalities. Any minor or major upgrades to Talos and Kubernetes will result in a major version change of this module. Please be aware that downgrades are typically neither supported nor tested.
@@ -718,11 +1019,14 @@ The [Talos Terraform Provider](https://registry.terraform.io/providers/siderolab
 ### :white_check_mark: Version Compatibility Matrix
 | Hcloud K8s |  K8s  | Talos | Talos CCM | Hcloud CCM | Hcloud CSI | Long-horn | Cilium | Ingress NGINX | Cert Mgr. | Auto-scaler |
 | :--------: | :---: | :---: | :-------: | :--------: | :--------: | :-------: | :----: | :-----------: | :-------: | :---------: |
-|  (**2**)   | 1.32  |  1.9  |    1.9    |    1.23    |    2.12    |   1.8.1   |  1.17  |     4.12      |   1.17    |    9.45     |
+|  **(3)**   | 1.33  | 1.10  |   1.10    |    1.26    |    2.14    |   1.8.2   |  1.18  |     4.13      |   1.18    |    9.47     |
+|   **2**    | 1.32  |  1.9  |    1.9    |    1.23    |    2.12    |   1.8.1   |  1.17  |     4.12      |   1.17    |    9.45     |
 |   **1**    | 1.31  |  1.8  |    1.8    |    1.21    |    2.10    |    1.8    |  1.17  |     4.12      |   1.15    |    9.38     |
+<!--
 |   **0**    | 1.30  |  1.7  |    1.6    |    1.20    |    2.9     |   1.7.1   |  1.16  |    4.10.1     |   1.14    |    9.37     |
+-->
 
-In this module, upgrades are conducted with care and conservatism. You will consistently receive the most tested and compatible releases of all components, avoiding the latest untested or incompatible releases that could disrupt your cluster.
+In this module, upgrades are conducted with care. You will consistently receive the most tested and compatible releases of all components, avoiding the latest untested or incompatible releases that could disrupt your cluster.
 
 > [!WARNING]
 > Do not change any software versions in this project on your own. Each component is tailored to ensure compatibility with new Kubernetes releases. This project specifies versions that are supported and have been thoroughly tested to work together.
@@ -741,12 +1045,10 @@ In this module, upgrades are conducted with care and conservatism. You will cons
 
 <!-- Roadmap -->
 ## :compass: Roadmap
-* [ ] **Upgrade to Talos 1.9 and Kubernetes 1.32**<br>
+* [ ] **Upgrade to Talos 1.10 and Kubernetes 1.33**<br>
       Once all components have compatible versions, the upgrade can be performed.
-* [x] **Upgrade to Talos 1.8 and Kubernetes 1.31**<br>
+* [x] **Upgrade to Talos 1.9 and Kubernetes 1.32**<br>
       Once all components have compatible versions, the upgrade can be performed.
-* [ ] **Integrate native IPv6 for pod traffic**<br>
-      Completion requires Hetzner's addition of IPv6 support to cloud networks, expected at the beginning of 2025 as announced at Hetzner Summit 2024.
 
 <!-- Contributing -->
 ## :wave: Contributing

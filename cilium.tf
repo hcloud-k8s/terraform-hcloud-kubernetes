@@ -1,3 +1,48 @@
+locals {
+  # Cilium IPSec Configuration
+  cilium_ipsec_enabled = var.cilium_encryption_enabled && var.cilium_encryption_type == "ipsec"
+
+  # Key configuration when IPSec is enabled
+  cilium_ipsec_key_config = local.cilium_ipsec_enabled ? {
+    next_id = var.cilium_ipsec_key_id % 15 + 1
+    format  = "${var.cilium_ipsec_key_id}+ ${var.cilium_ipsec_algorithm} ${random_bytes.cilium_ipsec_key[0].hex} 128"
+  } : null
+
+  # Kubernetes Secret manifest
+  cilium_ipsec_keys_manifest = local.cilium_ipsec_enabled ? {
+    apiVersion = "v1"
+    kind       = "Secret"
+    type       = "Opaque"
+
+    metadata = {
+      name      = "cilium-ipsec-keys"
+      namespace = "kube-system"
+
+      annotations = {
+        "cilium.io/key-id"        = tostring(var.cilium_ipsec_key_id)
+        "cilium.io/key-algorithm" = var.cilium_ipsec_algorithm
+        "cilium.io/key-size"      = tostring(var.cilium_ipsec_key_size)
+      }
+    }
+
+    data = {
+      keys = base64encode(local.cilium_ipsec_key_config.format)
+    }
+  } : null
+}
+
+# Generate random key when IPSec is enabled
+resource "random_bytes" "cilium_ipsec_key" {
+  count  = local.cilium_ipsec_enabled ? 1 : 0
+  length = ((var.cilium_ipsec_key_size / 8) + 4) # AES Key + 4 bytes salt
+
+  # Keepers to force regeneration when key_id changes
+  keepers = {
+    key_id = var.cilium_ipsec_key_id
+  }
+}
+
+
 data "helm_template" "cilium" {
   name      = "cilium"
   namespace = "kube-system"
@@ -40,11 +85,10 @@ data "helm_template" "cilium" {
       name  = "bpf.masquerade"
       value = true
     },
-    # Netkit requires kernel >= 6.8
-    # {
-    #   name  = "bpf.datapathMode"
-    #   value = "netkit"
-    # },
+    {
+      name  = "bpf.datapathMode"
+      value = var.cilium_bpf_datapath_mode
+    },
     {
       name  = "loadBalancer.acceleration"
       value = "native"
@@ -53,7 +97,15 @@ data "helm_template" "cilium" {
       name  = "installNoConntrackIptablesRules"
       value = true
     },
-
+    # IPSec
+    {
+      name  = "bpf.hostLegacyRouting"
+      value = local.cilium_ipsec_enabled
+    },
+    {
+      name  = "dnsProxy.enableTransparentMode"
+      value = true
+    },
     {
       name  = "egressGateway.enabled"
       value = var.cilium_egress_gateway_enabled
@@ -93,7 +145,7 @@ data "helm_template" "cilium" {
     yamlencode({
       encryption = {
         enabled = var.cilium_encryption_enabled
-        type    = "wireguard"
+        type    = var.cilium_encryption_type
       }
       hubble = {
         enabled = var.cilium_hubble_enabled
@@ -125,6 +177,10 @@ data "helm_template" "cilium" {
 locals {
   cilium_manifest = var.cilium_enabled ? {
     name     = "cilium"
-    contents = data.helm_template.cilium.manifest
+    contents = <<-EOF
+      ${yamlencode(local.cilium_ipsec_keys_manifest)}
+      ---
+      ${data.helm_template.cilium.manifest}
+    EOF
   } : null
 }

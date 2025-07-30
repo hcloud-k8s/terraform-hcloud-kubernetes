@@ -29,10 +29,6 @@ data "helm_template" "cluster_autoscaler" {
 
   set = [
     {
-      name  = "image.tag"
-      value = "v1.31.1"
-    },
-    {
       name  = "cloudProvider"
       value = "hetzner"
     },

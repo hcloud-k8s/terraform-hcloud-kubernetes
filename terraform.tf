@@ -9,7 +9,7 @@ terraform {
 
     hcloud = {
       source  = "hetznercloud/hcloud"
-      version = "1.51.0"
+      version = "1.52.0"
     }
 
     helm = {
@@ -25,6 +25,11 @@ terraform {
     tls = {
       source  = "hashicorp/tls"
       version = "~> 4.1.0"
+    }
+
+    random = {
+      source  = "hashicorp/random"
+      version = "~>3.7.2"
     }
   }
 }

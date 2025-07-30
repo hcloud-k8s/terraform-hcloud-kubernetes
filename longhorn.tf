@@ -38,7 +38,7 @@ data "helm_template" "longhorn" {
         type    = "rke1" # rke1 = ingress-nginx
       }
       persistence = {
-        defaultClass = !var.hcloud_csi_enabled
+        defaultClass = var.longhorn_default_storage_class
       }
     }),
     yamlencode(var.longhorn_helm_values)
