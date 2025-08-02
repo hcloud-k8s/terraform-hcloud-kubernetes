@@ -27,6 +27,6 @@ data "hcloud_floating_ip" "control_plane_ipv4" {
 
   id = coalesce(
     can(var.control_plane_public_vip_ipv4_id) ? var.control_plane_public_vip_ipv4_id : null,
-    local.control_plane_public_vip_ipv4_enabled ? hcloud_floating_ip.control_plane_ipv4[0].id : null
+    local.control_plane_public_vip_ipv4_enabled ? try(hcloud_floating_ip.control_plane_ipv4[0].id, null) : null
   )
 }
