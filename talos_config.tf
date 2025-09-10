@@ -562,7 +562,10 @@ data "talos_machine_configuration" "control_plane_init" {
   docs               = false
   examples           = false
 
-  config_patches = [yamlencode(local.talos_init_config)]
+  config_patches = concat(
+    [yamlencode(local.talos_init_config)],
+    [for patch in var.control_plane_init_config_patches : yamlencode(patch)]
+  )
 }
 
 data "talos_machine_configuration" "worker_init" {
@@ -575,7 +578,10 @@ data "talos_machine_configuration" "worker_init" {
   docs               = false
   examples           = false
 
-  config_patches = [yamlencode(local.talos_init_config)]
+  config_patches = concat(
+    [yamlencode(local.talos_init_config)],
+    [for patch in var.worker_init_config_patches : yamlencode(patch)]
+  )
 }
 
 data "talos_machine_configuration" "control_plane" {

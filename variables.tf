@@ -327,6 +327,11 @@ variable "control_plane_config_patches" {
   description = "List of configuration patches applied to the Control Plane nodes."
 }
 
+variable "control_plane_init_config_patches" {
+  type        = any
+  default     = []
+  description = "List of configuration patches applied to the Control Plane nodes when first initializing."
+}
 
 # Worker
 variable "worker_nodepools" {
@@ -405,6 +410,11 @@ variable "worker_config_patches" {
   description = "List of configuration patches applied to the Worker nodes."
 }
 
+variable "worker_init_config_patches" {
+  type        = any
+  default     = []
+  description = "List of configuration patches applied to the Worker nodes when initializing."
+}
 
 # Cluster Autoscaler
 variable "cluster_autoscaler_helm_repository" {
