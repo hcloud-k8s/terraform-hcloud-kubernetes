@@ -1,4 +1,6 @@
 locals {
+  ingress_cilium_enabled = var.ingress_controller_type == "cilium"
+
   # Cilium IPSec Configuration
   cilium_ipsec_enabled = var.cilium_encryption_enabled && var.cilium_encryption_type == "ipsec"
 
@@ -93,6 +95,35 @@ data "helm_template" "cilium" {
       }
       loadBalancer = {
         acceleration = "native"
+      }
+      ingressController = {
+        enabled = local.ingress_cilium_enabled
+        loadbalancerMode = "shared"
+        default = true
+        enableProxyProtocol = true
+        ingressLBAnnotationPrefixes = [ "lbipam.cilium.io", "nodeipam.cilium.io", "service.beta.kubernetes.io", "service.kubernetes.io", "load-balancer.hetzner.cloud" ]
+        service = merge(
+          {
+            type              = local.ingress_service_type
+            annotations       = local.ingress_load_balancer_annotations
+            loadBalancerIP    = (var.ingress_service_external_traffic_policy == "Local" ?
+              hcloud_network_subnet.load_balancer.ip_range :
+              local.network_node_ipv4_cidr)
+            externalTrafficPolicy = var.ingress_service_external_traffic_policy
+          },
+          local.ingress_service_type == "NodePort" ? 
+          {
+            insecureNodePort  = var.ingress_service_node_port_http
+            secureNodePort    = var.ingress_service_node_port_https
+          } : { }
+        )
+      }
+      nodePort = {
+        enabled = local.ingress_service_type == "NodePort"
+        addresses = (var.ingress_service_external_traffic_policy == "Local" ?
+              hcloud_network_subnet.load_balancer.ip_range :
+              local.network_node_ipv4_cidr)
+        enableHealthCheckLoadBalancerIP = true
       }
       hubble = {
         enabled = var.cilium_hubble_enabled

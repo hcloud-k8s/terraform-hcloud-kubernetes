@@ -1187,7 +1187,7 @@ variable "cilium_helm_chart" {
 
 variable "cilium_helm_version" {
   type        = string
-  default     = "1.18.2"
+  default     = "v1.18.2"
   description = "Version of the Cilium Helm chart to deploy."
 }
 
@@ -1378,6 +1378,67 @@ variable "cert_manager_enabled" {
   description = "Enables the deployment of cert-manager for managing TLS certificates."
 }
 
+# Ingress Controller
+variable "ingress_controller_enabled" {
+  type        = bool
+  default     = false
+  description = "Enables the deployment of an ingress controller."
+}
+
+variable "ingress_controller_type" {
+  type        = string
+  default     = "nginx"
+  description = "Specifies the type of ingress controller to be used. Valid options are 'nginx' or 'cilium'."
+
+  validation {
+    condition     = contains(["nginx", "cilium"], var.ingress_controller_type)
+    error_message = "Invalid ingress kind. Allowed values are 'nginx' or 'cilium'."
+  }
+
+  validation {
+    condition     = var.ingress_controller_type != "nginx" || var.cert_manager_enabled
+    error_message = "Ingress NGINX can only be enabled if cert-manager is also enabled."
+  }
+
+  validation {
+    condition     = var.ingress_controller_type != "cilium" || var.cilium_enabled
+    error_message = "Ingress Cilium can only be enabled if Cilium is also enabled."
+  }
+}
+
+# Ingress Service
+variable "ingress_service_node_port_http" {
+  type        = number
+  default     = 30000
+  description = "NodePort for HTTP traffic (port 80) on the ingress service."
+
+  validation {
+    condition     = var.ingress_service_node_port_http >= 30000 && var.ingress_service_node_port_http <= 32767
+    error_message = "The HTTP NodePort must be between 30000 and 32767."
+  }
+}
+
+variable "ingress_service_node_port_https" {
+  type        = number
+  default     = 30001
+  description = "NodePort for HTTPS traffic (port 443) on the ingress service."
+
+  validation {
+    condition     = var.ingress_service_node_port_https >= 30000 && var.ingress_service_node_port_https <= 32767
+    error_message = "The HTTPS NodePort must be between 30000 and 32767."
+  }
+}
+
+variable "ingress_service_external_traffic_policy" {
+  type        = string
+  default     = "Cluster"
+  description = "Denotes if this Service desires to route external traffic to node-local or cluster-wide endpoints."
+
+  validation {
+    condition     = contains(["Cluster", "Local"], var.ingress_service_external_traffic_policy)
+    error_message = "Invalid value for external traffic policy. Allowed values are 'Cluster' or 'Local'."
+  }
+}
 
 # Ingress NGINX
 variable "ingress_nginx_helm_repository" {
@@ -1402,17 +1463,6 @@ variable "ingress_nginx_helm_values" {
   type        = any
   default     = {}
   description = "Custom Helm values for the Ingress NGINX Controller chart deployment. These values will merge with and will override the default values provided by the Ingress NGINX Controller Helm chart."
-}
-
-variable "ingress_nginx_enabled" {
-  type        = bool
-  default     = false
-  description = "Enables the deployment of the Ingress NGINX Controller. Requires cert_manager_enabled to be true."
-
-  validation {
-    condition     = var.ingress_nginx_enabled ? var.cert_manager_enabled : true
-    error_message = "Ingress NGINX can only be enabled if cert-manager is also enabled."
-  }
 }
 
 variable "ingress_nginx_kind" {
@@ -1441,17 +1491,6 @@ variable "ingress_nginx_topology_aware_routing" {
   type        = bool
   default     = false
   description = "Enables Topology Aware Routing for ingress-nginx with the service annotation `service.kubernetes.io/topology-mode`, routing traffic closer to its origin."
-}
-
-variable "ingress_nginx_service_external_traffic_policy" {
-  type        = string
-  default     = "Cluster"
-  description = "Denotes if this Service desires to route external traffic to node-local or cluster-wide endpoints."
-
-  validation {
-    condition     = contains(["Cluster", "Local"], var.ingress_nginx_service_external_traffic_policy)
-    error_message = "Invalid value for external traffic policy. Allowed values are 'Cluster' or 'Local'."
-  }
 }
 
 variable "ingress_nginx_config" {

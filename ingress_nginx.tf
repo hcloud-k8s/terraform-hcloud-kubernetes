@@ -1,5 +1,6 @@
 locals {
-  ingress_nginx_namespace = var.ingress_nginx_enabled ? {
+  ingress_nginx_enabled = var.ingress_controller_type == "nginx"
+  ingress_nginx_namespace = local.ingress_nginx_enabled ? {
     apiVersion = "v1"
     kind       = "Namespace"
     metadata = {
@@ -11,22 +12,10 @@ locals {
     var.ingress_nginx_replicas,
     local.worker_sum < 3 ? 2 : 3
   )
-
-  ingress_nginx_service_load_balancer_required = (
-    var.ingress_nginx_enabled &&
-    length(var.ingress_load_balancer_pools) == 0
-  )
-  ingress_nginx_service_type = (
-    local.ingress_nginx_service_load_balancer_required ?
-    "LoadBalancer" :
-    "NodePort"
-  )
-  ingress_nginx_service_node_port_http  = 30000
-  ingress_nginx_service_node_port_https = 30001
 }
 
 data "helm_template" "ingress_nginx" {
-  count = var.ingress_nginx_enabled ? 1 : 0
+  count = local.ingress_nginx_enabled ? 1 : 0
 
   name      = "ingress-nginx"
   namespace = "ingress-nginx"
@@ -80,39 +69,25 @@ data "helm_template" "ingress_nginx" {
         watchIngressWithoutClass   = true
         service = merge(
           {
-            type                  = local.ingress_nginx_service_type
-            externalTrafficPolicy = var.ingress_nginx_service_external_traffic_policy
+            type                  = local.ingress_service_type
+            externalTrafficPolicy = var.ingress_service_external_traffic_policy
           },
-          local.ingress_nginx_service_type == "NodePort" ?
+          local.ingress_service_type == "NodePort" ?
           {
             nodePorts = {
-              http  = local.ingress_nginx_service_node_port_http
-              https = local.ingress_nginx_service_node_port_https
+              http  = var.ingress_service_node_port_http
+              https = var.ingress_service_node_port_https
             }
           } : {},
-          local.ingress_nginx_service_type == "LoadBalancer" ?
+          local.ingress_service_type == "LoadBalancer" ?
           {
-            annotations = {
-              "load-balancer.hetzner.cloud/algorithm-type"          = var.ingress_load_balancer_algorithm
-              "load-balancer.hetzner.cloud/disable-private-ingress" = true
-              "load-balancer.hetzner.cloud/disable-public-network"  = !var.ingress_load_balancer_public_network_enabled
-              "load-balancer.hetzner.cloud/health-check-interval"   = "${var.ingress_load_balancer_health_check_interval}s"
-              "load-balancer.hetzner.cloud/health-check-retries"    = var.ingress_load_balancer_health_check_retries
-              "load-balancer.hetzner.cloud/health-check-timeout"    = "${var.ingress_load_balancer_health_check_timeout}s"
-              "load-balancer.hetzner.cloud/hostname"                = local.ingress_service_load_balancer_hostname
-              "load-balancer.hetzner.cloud/ipv6-disabled"           = false
-              "load-balancer.hetzner.cloud/location"                = local.ingress_service_load_balancer_location
-              "load-balancer.hetzner.cloud/name"                    = local.ingress_service_load_balancer_name
-              "load-balancer.hetzner.cloud/type"                    = var.ingress_load_balancer_type
-              "load-balancer.hetzner.cloud/use-private-ip"          = true
-              "load-balancer.hetzner.cloud/uses-proxyprotocol"      = true
-            }
+            annotations = local.ingress_load_balancer_annotations
           } : {}
         )
         config = merge(
           {
             proxy-real-ip-cidr = (
-              var.ingress_nginx_service_external_traffic_policy == "Local" ?
+              var.ingress_service_external_traffic_policy == "Local" ?
               hcloud_network_subnet.load_balancer.ip_range :
               local.network_node_ipv4_cidr
             )
@@ -133,7 +108,7 @@ data "helm_template" "ingress_nginx" {
 }
 
 locals {
-  ingress_nginx_manifest = var.ingress_nginx_enabled ? {
+  ingress_nginx_manifest = local.ingress_nginx_enabled ? {
     name     = "ingress-nginx"
     contents = <<-EOF
       ${yamlencode(local.ingress_nginx_namespace)}

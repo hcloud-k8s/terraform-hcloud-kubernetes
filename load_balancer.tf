@@ -101,16 +101,26 @@ resource "hcloud_load_balancer_service" "kube_api" {
 
 # Ingress Service Load Balancer
 locals {
+  ingress_service_load_balancer_required = (
+    (local.ingress_nginx_enabled || local.ingress_cilium_enabled) &&
+    length(var.ingress_load_balancer_pools) == 0
+  )
+  ingress_service_type = (
+    local.ingress_service_load_balancer_required ?
+    "LoadBalancer" :
+    "NodePort"
+  )
+
   ingress_service_load_balancer_private_ipv4 = cidrhost(hcloud_network_subnet.load_balancer.ip_range, -4)
-  ingress_service_load_balancer_public_ipv4  = local.ingress_nginx_service_load_balancer_required ? hcloud_load_balancer.ingress[0].ipv4 : null
-  ingress_service_load_balancer_public_ipv6  = local.ingress_nginx_service_load_balancer_required ? hcloud_load_balancer.ingress[0].ipv6 : null
-  ingress_service_load_balancer_hostname     = local.ingress_nginx_service_load_balancer_required ? "static.${join(".", reverse(split(".", local.ingress_service_load_balancer_public_ipv4)))}.clients.your-server.de" : ""
+  ingress_service_load_balancer_public_ipv4  = local.ingress_service_load_balancer_required ? hcloud_load_balancer.ingress[0].ipv4 : null
+  ingress_service_load_balancer_public_ipv6  = local.ingress_service_load_balancer_required ? hcloud_load_balancer.ingress[0].ipv6 : null
+  ingress_service_load_balancer_hostname     = local.ingress_service_load_balancer_required ? "static.${join(".", reverse(split(".", local.ingress_service_load_balancer_public_ipv4)))}.clients.your-server.de" : ""
   ingress_service_load_balancer_name         = "${var.cluster_name}-ingress"
   ingress_service_load_balancer_location     = local.hcloud_load_balancer_location
 }
 
 resource "hcloud_load_balancer" "ingress" {
-  count = local.ingress_nginx_service_load_balancer_required ? 1 : 0
+  count = local.ingress_service_load_balancer_required ? 1 : 0
 
   name               = local.ingress_service_load_balancer_name
   location           = local.ingress_service_load_balancer_location
@@ -134,7 +144,7 @@ resource "hcloud_load_balancer" "ingress" {
 }
 
 resource "hcloud_load_balancer_network" "ingress" {
-  count = local.ingress_nginx_service_load_balancer_required ? 1 : 0
+  count = local.ingress_service_load_balancer_required ? 1 : 0
 
   load_balancer_id        = hcloud_load_balancer.ingress[0].id
   enable_public_interface = var.ingress_load_balancer_public_network_enabled
@@ -187,6 +197,23 @@ locals {
     }
   ]
   ingress_load_balancer_pools_map = { for lp in local.ingress_load_balancer_pools : lp.name => lp }
+
+  ingress_load_balancer_annotations = {
+    "load-balancer.hetzner.cloud/algorithm-type"          = var.ingress_load_balancer_algorithm
+    "load-balancer.hetzner.cloud/disable-private-ingress" = "true"
+    "load-balancer.hetzner.cloud/disable-public-network"  = tostring(!var.ingress_load_balancer_public_network_enabled)
+    "load-balancer.hetzner.cloud/health-check-interval"   = "${var.ingress_load_balancer_health_check_interval}s"
+    "load-balancer.hetzner.cloud/health-check-retries"    = tostring(var.ingress_load_balancer_health_check_retries)
+    "load-balancer.hetzner.cloud/health-check-timeout"    = "${var.ingress_load_balancer_health_check_timeout}s"
+    "load-balancer.hetzner.cloud/hostname"                = local.ingress_service_load_balancer_hostname
+    "load-balancer.hetzner.cloud/ipv6-disabled"           = "false"
+    "load-balancer.hetzner.cloud/location"                = local.ingress_service_load_balancer_location
+    "load-balancer.hetzner.cloud/name"                    = local.ingress_service_load_balancer_name
+    "load-balancer.hetzner.cloud/type"                    = var.ingress_load_balancer_type
+    "load-balancer.hetzner.cloud/use-private-ip"          = "true"
+    "load-balancer.hetzner.cloud/uses-proxyprotocol"      = "true"
+  }
+
 }
 
 resource "hcloud_load_balancer" "ingress_pool" {
@@ -286,8 +313,8 @@ resource "hcloud_load_balancer_service" "ingress_pool" {
               listen_port = protocol == "http" ? 80 : 443
               destination_port = (
                 protocol == "http" ?
-                local.ingress_nginx_service_node_port_http :
-                local.ingress_nginx_service_node_port_https
+                var.ingress_service_node_port_http :
+                var.ingress_service_node_port_https
               )
             }
           }
