@@ -1,4 +1,6 @@
 locals {
+  cilium_gateway_enabled = var.cilium_enabled && var.gateway_api_provider == "cilium"
+
   # Cilium IPSec Configuration
   cilium_ipsec_enabled = var.cilium_encryption_enabled && var.cilium_encryption_type == "ipsec"
 
@@ -31,7 +33,7 @@ locals {
   } : null
 
   # Cilium integration with Gateway API
-  cilium_gateway_api_manifest = var.gateway_api_enabled ? {
+  cilium_gateway_api_manifest = local.cilium_gateway_enabled ? {
     apiVersion = "gateway.networking.k8s.io/v1"
     kind       = "GatewayClass"
     metadata = {
@@ -111,7 +113,7 @@ data "helm_template" "cilium" {
         acceleration = "native"
       }
       gatewayAPI = {
-        enabled = var.gateway_api_enabled
+        enabled = local.cilium_gateway_enabled
         enableProxyProtocol = true
         externalTrafficPolicy = var.ingress_service_external_traffic_policy
       }

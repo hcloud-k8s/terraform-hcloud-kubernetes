@@ -1669,14 +1669,50 @@ variable "gateway_api_enabled" {
   description = "Enables the Gateway API Custom Resource Definitions (CRDs) deployment."
 }
 
+variable "gateway_api_provider" {
+  type        = string
+  default     = "cilium"
+  description = "Specifies the Gateway API provider. Options are 'cilium' (Cilium Controller), or 'ingate' (InGate Ingress & Gateway API Controller)."
+
+  validation {
+    condition     = contains(["cilium", "ingate"], var.gateway_api_provider)
+    error_message = "Invalid Gateway API provider. Allowed values are 'cilium', or 'ingate'."
+  }
+
+  validation {
+    condition     = var.gateway_api_provider != "cilium" || var.cilium_enabled
+    error_message = "Gateway API provider cannot be set to 'cilium' unless Cilium is also enabled."
+  }
+
+  validation {
+    condition     = var.gateway_api_provider != "ingate"
+    error_message = "Gateway API provider 'ingate' is not yet supported."
+  }
+}
+
 variable "gateway_api_version" {
   type        = string
   default     = "v1.3.0" # https://github.com/kubernetes-sigs/gateway-api
   description = "Specifies the version of the Gateway API Custom Resource Definitions (CRDs) to deploy."
 
+  # Cilium provider constraints
   validation {
-    condition     = var.ingress_controller_type != "cilium" || (var.cilium_helm_version == "v1.18.2" && var.gateway_api_version == "v1.3.0")
-    error_message = "When ingress_controller_type is 'cilium', cilium_helm_version must be 'v1.18.2' and gateway_api_version must be 'v1.3.0'."
+    condition = (
+      var.gateway_api_provider != "cilium" ||
+      (var.gateway_api_provider == "cilium" &&
+        var.cilium_helm_version == "v1.18.2" &&
+        var.gateway_api_version == "v1.3.0")
+    )
+    error_message = "When gateway_api_provider is 'cilium', cilium_helm_version must be 'v1.18.2' and gateway_api_version must be 'v1.3.0'."
+  }
+
+  # InGate provider constraints (will also fail due to provider-level validation)
+  validation {
+    condition = (
+      var.gateway_api_provider != "ingate" ||
+      (var.gateway_api_provider == "ingate" && var.gateway_api_version == "v1.2.0")
+    )
+    error_message = "When gateway_api_provider is 'ingate', gateway_api_version must be 'v1.2.0'."
   }
 }
 
