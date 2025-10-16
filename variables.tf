@@ -230,19 +230,31 @@ variable "firewall_talos_api_source" {
 variable "control_plane_public_vip_ipv4_enabled" {
   type        = bool
   default     = false
-  description = "If true, a floating IP will be created and assigned to the Control Plane nodes."
-}
-
-variable "control_plane_public_vip_ipv4_id" {
-  type        = number
-  default     = null
-  description = "Specifies the Floating IP ID for the Control Plane nodes. A new floating IP will be created if this is set to null."
+  description = "If true, a floating IPv4 will be created and assigned to the Control Plane nodes."
 }
 
 variable "control_plane_private_vip_ipv4_enabled" {
   type        = bool
   default     = true
-  description = "If true, an alias IP will be created and assigned to the Control Plane nodes."
+  description = "If true, an alias IPv4 will be created and assigned to the Control Plane nodes."
+}
+
+variable "control_plane_public_vip_ipv4_id" {
+  type        = number
+  default     = null
+  description = "Specifies the Floating IPv4 ID for the Control Plane nodes. A new floating IPv4 will be created if this is set to null."
+}
+
+variable "control_plane_public_vip_ipv6_enabled" {
+  type        = bool
+  default     = false
+  description = "If true, a floating IPv6 will be created and assigned to the Control Plane nodes."
+}
+
+variable "control_plane_public_vip_ipv6_id" {
+  type        = number
+  default     = null
+  description = "Specifies the Floating IPv6 ID for the Control Plane nodes. A new floating IPv6 will be created if this is set to null."
 }
 
 variable "kube_api_admission_control" {
