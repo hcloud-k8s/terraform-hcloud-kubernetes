@@ -1661,3 +1661,27 @@ variable "prometheus_operator_crds_version" {
   default     = "v0.86.1" # https://github.com/prometheus-operator/prometheus-operator
   description = "Specifies the version of the Prometheus Operator Custom Resource Definitions (CRDs) to deploy."
 }
+
+# Gateway API
+variable "gateway_api_enabled" {
+  type        = bool
+  default     = false
+  description = "Enables the Gateway API Custom Resource Definitions (CRDs) deployment."
+}
+
+variable "gateway_api_version" {
+  type        = string
+  default     = "v1.3.0" # https://github.com/kubernetes-sigs/gateway-api
+  description = "Specifies the version of the Gateway API Custom Resource Definitions (CRDs) to deploy."
+
+  validation {
+    condition     = var.ingress_controller_type != "cilium" || (var.cilium_helm_version == "v1.18.2" && var.gateway_api_version == "v1.3.0")
+    error_message = "When ingress_controller_type is 'cilium', cilium_helm_version must be 'v1.18.2' and gateway_api_version must be 'v1.3.0'."
+  }
+}
+
+variable "gateway_api_experimental_enabled" {
+  type        = bool
+  default     = false
+  description = "Enables the experimental Gateway API features. These features are not yet part of the official Gateway API specification and may change in future releases."
+}

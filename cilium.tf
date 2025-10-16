@@ -29,6 +29,22 @@ locals {
       keys = base64encode(local.cilium_ipsec_key_config.format)
     }
   } : null
+
+  # Cilium integration with Gateway API
+  cilium_gateway_api_manifest = var.gateway_api_enabled ? {
+    apiVersion = "gateway.networking.k8s.io/v1"
+    kind       = "GatewayClass"
+    metadata = {
+      name      = "cilium"
+      namespace = "kube-system"
+    }
+    spec = {
+      gatewayClassName = "cilium"
+      infrastructure = {
+        annotations = local.ingress_load_balancer_annotations
+      }
+    }
+  } : null
 }
 
 # Generate random key when IPSec is enabled
@@ -94,6 +110,11 @@ data "helm_template" "cilium" {
       loadBalancer = {
         acceleration = "native"
       }
+      gatewayAPI = {
+        enabled = var.gateway_api_enabled
+        enableProxyProtocol = true
+        externalTrafficPolicy = var.ingress_service_external_traffic_policy
+      }
       hubble = {
         enabled = var.cilium_hubble_enabled
         relay   = { enabled = var.cilium_hubble_relay_enabled }
@@ -151,6 +172,8 @@ locals {
       ${yamlencode(local.cilium_ipsec_keys_manifest)}
       ---
       ${data.helm_template.cilium.manifest}
+      ---
+      ${yamlencode(local.cilium_gateway_api_manifest)}
     EOF
   } : null
 }
