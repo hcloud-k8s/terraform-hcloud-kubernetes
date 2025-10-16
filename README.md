@@ -158,7 +158,7 @@ module "kubernetes" {
 
   # Enable Ingress NGINX Controller and Cert Manager (optional)
   cert_manager_enabled  = true
-  ingress_nginx_enabled = true
+  ingress_controller_enabled = true
 
   control_plane_nodepools = [
     { name = "control", type = "cpx22", location = "fsn1", count = 3 }
@@ -502,6 +502,8 @@ For access to Talos and the Kubernetes API, please refer to the [Cluster Access]
 
 The ingress controller uses a default load balancer service to manage external traffic. For geo-redundancy and high availability, `ingress_load_balancer_pools` can be configured as an alternative, replacing the default load balancer with the specified pool of load balancers.
 
+This project has support for Cilium and NGINX ingress controllers. The default is NGINX, but Cilium can be selected by setting `ingress_controller_type` to `cilium`.
+
 ##### Configuring Load Balancer Pools
 To replace the default load balancer, use `ingress_load_balancer_pools` in the Terraform configuration. This setup ensures high availability and geo-redundancy by distributing traffic from various locations across all targets in all regions.
 
@@ -526,8 +528,8 @@ Configuring local traffic handling enhances network efficiency by reducing laten
 
 Example `kubernetes.tf` configuration:
 ```hcl
-ingress_nginx_kind = "DaemonSet"
-ingress_nginx_service_external_traffic_policy = "Local"
+ingress_nginx_kind = "DaemonSet"   # Only for ingress_controller_type = "nginx"
+ingress_service_external_traffic_policy = "Local"
 
 ingress_load_balancer_pools = [
   {
@@ -545,7 +547,7 @@ ingress_load_balancer_pools = [
 
 Key settings in this configuration:
 - `local_traffic`: Limits load balancer targets to nodes in the same geographic location as the load balancer, reducing data travel distances and keeping traffic within the region.
-- `ingress_nginx_service_external_traffic_policy` set to `Local`: Ensures external traffic is handled directly on the local node, avoiding extra network hops.
+- `ingress_service_external_traffic_policy` set to `Local`: Ensures external traffic is handled directly on the local node, avoiding extra network hops.
 - `ingress_nginx_kind` set to `DaemonSet`: Deploys an ingress controller instance on every node, enabling requests to be handled locally for faster response times.
 
 Topology-aware routing in ingress-nginx can optionally be enabled by setting the `ingress_nginx_topology_aware_routing` variable to `true`. This functionality routes traffic to the nearest upstream endpoints, enhancing efficiency for supported services. Note that this feature is only applicable to services that support topology-aware routing. For more information, refer to the [Kubernetes documentation](https://kubernetes.io/docs/concepts/services-networking/topology-aware-routing/).
@@ -755,7 +757,7 @@ prometheus_operator_crds_enabled   = true
 
 # Additional Components (disabled by default)
 cert_manager_enabled               = true
-ingress_nginx_enabled              = true
+ingress_controller_enabled         = true
 longhorn_enabled                   = true
 
 # Enable etcd backup by defining one of these variables:
