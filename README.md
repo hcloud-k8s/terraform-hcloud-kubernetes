@@ -502,7 +502,7 @@ For access to Talos and the Kubernetes API, please refer to the [Cluster Access]
 
 The ingress controller uses a default load balancer service to manage external traffic. For geo-redundancy and high availability, `ingress_load_balancer_pools` can be configured as an alternative, replacing the default load balancer with the specified pool of load balancers.
 
-This project has support for Cilium and NGINX ingress controllers. The default is NGINX, but Cilium can be selected by setting `ingress_controller_type` to `cilium`.
+This project has support for Cilium and NGINX ingress controllers. The default is NGINX, but Cilium can be selected by setting `ingress_controller_provider` to `cilium`.
 
 ##### Configuring Load Balancer Pools
 To replace the default load balancer, use `ingress_load_balancer_pools` in the Terraform configuration. This setup ensures high availability and geo-redundancy by distributing traffic from various locations across all targets in all regions.
@@ -528,7 +528,7 @@ Configuring local traffic handling enhances network efficiency by reducing laten
 
 Example `kubernetes.tf` configuration:
 ```hcl
-ingress_nginx_kind = "DaemonSet"   # Only for ingress_controller_type = "nginx"
+ingress_nginx_kind = "DaemonSet"   # Only for ingress_controller_provider = "nginx"
 ingress_service_external_traffic_policy = "Local"
 
 ingress_load_balancer_pools = [

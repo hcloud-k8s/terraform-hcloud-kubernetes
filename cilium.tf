@@ -1,5 +1,5 @@
 locals {
-  ingress_cilium_enabled = var.ingress_controller_enabled && var.ingress_controller_type == "cilium"
+  ingress_cilium_enabled = var.ingress_controller_enabled && var.ingress_controller_provider == "cilium"
 
   # Cilium IPSec Configuration
   cilium_ipsec_enabled = var.cilium_encryption_enabled && var.cilium_encryption_type == "ipsec"

@@ -1,5 +1,5 @@
 locals {
-  ingress_nginx_enabled = var.ingress_controller_enabled && var.ingress_controller_type == "nginx"
+  ingress_nginx_enabled = var.ingress_controller_enabled && var.ingress_controller_provider == "nginx"
   ingress_nginx_namespace = local.ingress_nginx_enabled ? {
     apiVersion = "v1"
     kind       = "Namespace"

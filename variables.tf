@@ -1385,23 +1385,23 @@ variable "ingress_controller_enabled" {
   description = "Enables the deployment of an ingress controller."
 }
 
-variable "ingress_controller_type" {
+variable "ingress_controller_provider" {
   type        = string
   default     = "nginx"
-  description = "Specifies the type of ingress controller to be used. Valid options are 'nginx' or 'cilium'."
+  description = "Specifies the ingress controller provider to use. Valid options are 'nginx' or 'cilium'."
 
   validation {
-    condition     = contains(["nginx", "cilium"], var.ingress_controller_type)
-    error_message = "Invalid ingress kind. Allowed values are 'nginx' or 'cilium'."
+    condition     = contains(["nginx", "cilium"], var.ingress_controller_provider)
+    error_message = "Invalid ingress provider. Allowed values are 'nginx' or 'cilium'."
   }
 
   validation {
-    condition     = var.ingress_controller_type != "nginx" || var.cert_manager_enabled
+    condition     = var.ingress_controller_provider != "nginx" || var.cert_manager_enabled
     error_message = "Ingress NGINX can only be enabled if cert-manager is also enabled."
   }
 
   validation {
-    condition     = var.ingress_controller_type != "cilium" || var.cilium_enabled
+    condition     = var.ingress_controller_provider != "cilium" || var.cilium_enabled
     error_message = "Ingress Cilium can only be enabled if Cilium is also enabled."
   }
 }
