@@ -95,8 +95,22 @@ resource "terraform_data" "upgrade_control_plane" {
         ${local.talos_healthcheck_enabled} && talosctl --talosconfig "$talosconfig" health --server -n '${local.talos_primary_node_private_ipv4}'
         set -- ${join(" ", local.control_plane_private_ipv4_list)}
         for host in "$@"; do
+          echo "Checking node $host..."
+
+          current_version=$(talosctl --talosconfig "$talosconfig" get version -n "$host" -o json | jq -r '.spec.version // empty')
+          current_schematic=$(talosctl --talosconfig "$talosconfig" get extensions -n "$host" -o json \
+            | jq -r 'select(.spec.metadata.name=="schematic") | .spec.metadata.version' | head -n1 || true)
+
+          # Skips upgrading the node if talos version and schematic matches
+          if [ "$${current_version:-}" = "${var.talos_version}" ] && [ "$${current_schematic:-}" = "${local.talos_schematic_id}" ]; then
+            echo "Node $host already at target version and schematic — skipping upgrade"
+            continue
+          fi
+
+          echo "Upgrading $host to ${var.talos_version} / schematic ${local.talos_schematic_id}..."
           talosctl --talosconfig "$talosconfig" upgrade -n "$host" --preserve --image '${local.talos_installer_image_url}'
           ${local.talos_healthcheck_enabled} && talosctl --talosconfig "$talosconfig" health --server -n "$host"
+          echo "Node $host upgraded successfully"
         done
         echo "Control plane Nodes upgraded successfully"
       else
@@ -136,8 +150,22 @@ resource "terraform_data" "upgrade_worker" {
         ${local.talos_healthcheck_enabled} && talosctl --talosconfig "$talosconfig" health --server -n '${local.talos_primary_node_private_ipv4}'
         set -- ${join(" ", local.worker_private_ipv4_list)}
         for host in "$@"; do
+          echo "Checking node $host..."
+
+          current_version=$(talosctl --talosconfig "$talosconfig" get version -n "$host" -o json | jq -r '.spec.version // empty')
+          current_schematic=$(talosctl --talosconfig "$talosconfig" get extensions -n "$host" -o json \
+            | jq -r 'select(.spec.metadata.name=="schematic") | .spec.metadata.version' | head -n1 || true)
+
+          # Skips upgrading the node if talos version and schematic matches
+          if [ "$${current_version:-}" = "${var.talos_version}" ] && [ "$${current_schematic:-}" = "${local.talos_schematic_id}" ]; then
+            echo "Node $host already at target version and schematic — skipping upgrade"
+            continue
+          fi
+
+          echo "Upgrading $host to ${var.talos_version} / schematic ${local.talos_schematic_id}..."
           talosctl --talosconfig "$talosconfig" upgrade -n "$host" --preserve --image '${local.talos_installer_image_url}'
           ${local.talos_healthcheck_enabled} && talosctl --talosconfig "$talosconfig" health --server -n '${local.talos_primary_node_private_ipv4}'
+          echo "Node $host upgraded successfully"
         done
         echo "Worker Nodes upgraded successfully"
       else
@@ -179,8 +207,22 @@ resource "terraform_data" "upgrade_cluster_autoscaler" {
         ${local.talos_healthcheck_enabled} && talosctl --talosconfig "$talosconfig" health --server -n '${local.talos_primary_node_private_ipv4}'
         set -- ${join(" ", local.cluster_autoscaler_private_ipv4_list)}
         for host in "$@"; do
+          echo "Checking node $host..."
+
+          current_version=$(talosctl --talosconfig "$talosconfig" get version -n "$host" -o json | jq -r '.spec.version // empty')
+          current_schematic=$(talosctl --talosconfig "$talosconfig" get extensions -n "$host" -o json \
+            | jq -r 'select(.spec.metadata.name=="schematic") | .spec.metadata.version' | head -n1 || true)
+
+          # Skips upgrading the node if talos version and schematic matches
+          if [ "$${current_version:-}" = "${var.talos_version}" ] && [ "$${current_schematic:-}" = "${local.talos_schematic_id}" ]; then
+            echo "Node $host already at target version and schematic — skipping upgrade"
+            continue
+          fi
+
+          echo "Upgrading $host to ${var.talos_version} / schematic ${local.talos_schematic_id}..."
           talosctl --talosconfig "$talosconfig" upgrade -n "$host" --preserve --image '${local.talos_installer_image_url}'
           ${local.talos_healthcheck_enabled} && talosctl --talosconfig "$talosconfig" health --server -n '${local.talos_primary_node_private_ipv4}'
+          echo "Node $host upgraded successfully"
         done
         echo "Cluster Autoscaler Nodes upgraded successfully"
       else
