@@ -25,6 +25,15 @@
         "major"
       ],
       "minimumReleaseAge": "14 days"
+    },
+    {
+      "description": "Pin Kubernetes & Talos to current minor and update only patch releases",
+      "matchDatasources": ["github-tags"],
+      "matchDepNames": [
+        "kubernetes/kubernetes",
+        "siderolabs/talos"
+      ],
+      "matchUpdateTypes": ["patch"]
     }
   ],
   "customManagers": [

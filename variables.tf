@@ -539,7 +539,7 @@ variable "packer_arm64_builder" {
 # Talos
 variable "talos_version" {
   type        = string
-  default     = "v1.11.1"
+  default     = "v1.11.3" # https://github.com/siderolabs/talos
   description = "Specifies the version of Talos to be used in generated machine configurations."
 }
 
@@ -744,7 +744,7 @@ variable "talos_extra_remote_manifests" {
 # Talos Backup
 variable "talos_backup_version" {
   type        = string
-  default     = "v0.1.0-beta.2-1-g9ccc125"
+  default     = "v0.1.0-beta.3-3-g38dad7c"
   description = "Specifies the version of Talos Backup to be used in generated machine configurations."
 }
 
@@ -810,6 +810,12 @@ variable "talos_backup_age_x25519_public_key" {
   description = "AGE X25519 Public Key for client side Talos Backup encryption."
 }
 
+variable "talos_backup_enable_compression" {
+  type        = bool
+  default     = false
+  description = "Enable ETCD snapshot compression with zstd algorithm."
+}
+
 variable "talos_backup_schedule" {
   type        = string
   default     = "0 * * * *"
@@ -820,7 +826,7 @@ variable "talos_backup_schedule" {
 # Kubernetes
 variable "kubernetes_version" {
   type        = string
-  default     = "v1.33.4"
+  default     = "v1.33.5" # https://github.com/kubernetes/kubernetes
   description = "Specifies the Kubernetes version to deploy."
 }
 
