@@ -103,6 +103,8 @@ resource "hcloud_network_subnet" "worker" {
 }
 
 resource "hcloud_network_subnet" "autoscaler" {
+  for_each = { for np in local.cluster_autoscaler_nodepools : np.name => np }
+
   network_id   = local.hcloud_network_id
   type         = "cloud"
   network_zone = local.hcloud_network_zone
@@ -110,7 +112,7 @@ resource "hcloud_network_subnet" "autoscaler" {
   ip_range = cidrsubnet(
     local.network_node_ipv4_cidr,
     local.network_node_ipv4_subnet_mask_size - split("/", local.network_node_ipv4_cidr)[1],
-    pow(2, local.network_node_ipv4_subnet_mask_size - split("/", local.network_node_ipv4_cidr)[1]) - 1
+    pow(2, local.network_node_ipv4_subnet_mask_size - split("/", local.network_node_ipv4_cidr)[1]) - 1 - index(local.cluster_autoscaler_nodepools, each.value)
   )
 
   depends_on = [
