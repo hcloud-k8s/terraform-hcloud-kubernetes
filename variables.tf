@@ -1393,7 +1393,7 @@ variable "cert_manager_helm_chart" {
 
 variable "cert_manager_helm_version" {
   type        = string
-  default     = "v1.18.3"
+  default     = "v1.19.1"
   description = "Version of the Cert Manager Helm chart to deploy."
 }
 
