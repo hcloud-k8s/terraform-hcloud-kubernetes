@@ -1658,6 +1658,42 @@ variable "prometheus_operator_crds_enabled" {
 
 variable "prometheus_operator_crds_version" {
   type        = string
-  default     = "v0.85.0" # https://github.com/prometheus-operator/prometheus-operator
+  default     = "v0.84.0" # https://github.com/prometheus-operator/prometheus-operator
   description = "Specifies the version of the Prometheus Operator Custom Resource Definitions (CRDs) to deploy."
+}
+
+variable "control_plane_ip_range" {
+  description = "Optional variable to override the calculated IP range for the control plane subnet."
+  type        = string
+  default     = null
+}
+
+variable "load_balancer_ip_range" {
+  description = "Optional variable to override the calculated IP range for the load balancer subnet."
+  type        = string
+  default     = null
+}
+
+variable "worker_ip_range" {
+  description = "Optional variable to override the calculated IP range for the worker nodes subnet."
+  type        = string
+  default     = null
+}
+
+variable "extended_worker_ip_range" {
+  description = "Optional variable to override the calculated IP range for the worker nodes subnet."
+  type        = string
+  default     = null
+}
+
+variable "autoscaler_ip_range" {
+  description = "Optional variable to override the calculated IP range for the autoscaler subnet."
+  type        = string
+  default     = null
+}
+
+variable "node_ipv4_cidrs" {
+  type        = list(string)
+  description = "A list of CIDR blocks for valid node IP subnets."
+  default     = []
 }

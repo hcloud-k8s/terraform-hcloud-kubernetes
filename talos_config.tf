@@ -222,7 +222,7 @@ locals {
           )
           extraMounts = local.talos_kubelet_extra_mounts
           nodeIP = {
-            validSubnets = [local.network_node_ipv4_cidr]
+            validSubnets = var.node_ipv4_cidrs
           }
         }
         kernel = {

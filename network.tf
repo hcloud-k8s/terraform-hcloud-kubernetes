@@ -69,7 +69,7 @@ resource "hcloud_network_subnet" "control_plane" {
   type         = "cloud"
   network_zone = local.hcloud_network_zone
 
-  ip_range = cidrsubnet(
+  ip_range = var.control_plane_ip_range != null ? var.control_plane_ip_range : cidrsubnet(
     local.network_node_ipv4_cidr,
     local.network_node_ipv4_subnet_mask_size - split("/", local.network_node_ipv4_cidr)[1],
     0 + (local.network_node_ipv4_cidr_skip_first_subnet ? 1 : 0)
@@ -81,7 +81,7 @@ resource "hcloud_network_subnet" "load_balancer" {
   type         = "cloud"
   network_zone = local.hcloud_network_zone
 
-  ip_range = cidrsubnet(
+  ip_range = var.load_balancer_ip_range != null ? var.load_balancer_ip_range : cidrsubnet(
     local.network_node_ipv4_cidr,
     local.network_node_ipv4_subnet_mask_size - split("/", local.network_node_ipv4_cidr)[1],
     1 + (local.network_node_ipv4_cidr_skip_first_subnet ? 1 : 0)
@@ -95,7 +95,7 @@ resource "hcloud_network_subnet" "worker" {
   type         = "cloud"
   network_zone = local.hcloud_network_zone
 
-  ip_range = cidrsubnet(
+  ip_range = var.worker_ip_range != null ? var.worker_ip_range : cidrsubnet(
     local.network_node_ipv4_cidr,
     local.network_node_ipv4_subnet_mask_size - split("/", local.network_node_ipv4_cidr)[1],
     2 + (local.network_node_ipv4_cidr_skip_first_subnet ? 1 : 0) + index(local.worker_nodepools, each.value)
@@ -107,7 +107,7 @@ resource "hcloud_network_subnet" "autoscaler" {
   type         = "cloud"
   network_zone = local.hcloud_network_zone
 
-  ip_range = cidrsubnet(
+  ip_range = var.autoscaler_ip_range != null ? var.autoscaler_ip_range : cidrsubnet(
     local.network_node_ipv4_cidr,
     local.network_node_ipv4_subnet_mask_size - split("/", local.network_node_ipv4_cidr)[1],
     pow(2, local.network_node_ipv4_subnet_mask_size - split("/", local.network_node_ipv4_cidr)[1]) - 1
