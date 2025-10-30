@@ -117,6 +117,8 @@ resource "terraform_data" "packer_init" {
     working_dir = "${path.module}/packer/"
     command     = "packer init -upgrade requirements.pkr.hcl"
   }
+
+  depends_on = [data.external.client_prerequisites_check]
 }
 
 resource "terraform_data" "amd64_image" {
@@ -150,7 +152,10 @@ resource "terraform_data" "amd64_image" {
     }
   }
 
-  depends_on = [terraform_data.packer_init]
+  depends_on = [
+    data.external.client_prerequisites_check,
+    terraform_data.packer_init
+  ]
 }
 
 resource "terraform_data" "arm64_image" {
@@ -184,7 +189,10 @@ resource "terraform_data" "arm64_image" {
     }
   }
 
-  depends_on = [terraform_data.packer_init]
+  depends_on = [
+    data.external.client_prerequisites_check,
+    terraform_data.packer_init
+  ]
 }
 
 data "hcloud_image" "amd64" {

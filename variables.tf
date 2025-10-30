@@ -95,6 +95,31 @@ variable "cluster_delete_protection" {
 }
 
 
+# Client Tools
+variable "client_prerequisites_check_enabled" {
+  type        = bool
+  default     = true
+  description = "Controls whether a preflight check verifies that required client tools are installed before provisioning."
+}
+
+variable "talosctl_version_check_enabled" {
+  type        = bool
+  default     = true
+  description = "Controls whether a preflight check verifies the local talosctl client version before provisioning."
+}
+
+variable "talosctl_retry_count" {
+  type        = number
+  default     = 5
+  description = "Specifies how many times talosctl operations should retry before failing. This setting helps improve resilience against transient network issues or temporary API unavailability."
+
+  validation {
+    condition     = var.talosctl_retry_count >= 0
+    error_message = "The talosctl retry count must be at least 0."
+  }
+}
+
+
 # Network Configuration
 variable "network_ipv4_cidr" {
   type        = string
@@ -492,7 +517,7 @@ variable "cluster_autoscaler_config_patches" {
 variable "cluster_autoscaler_discovery_enabled" {
   type        = bool
   default     = false
-  description = "Enable rolling upgrades of Cluster Autoscaler nodes during Talos OS upgrades and Talos configuration changes. This feature requires jq to be installed on the machine running Terraform."
+  description = "Enable rolling upgrades of Cluster Autoscaler nodes during Talos OS upgrades and Talos configuration changes."
 }
 
 
@@ -500,7 +525,7 @@ variable "cluster_autoscaler_discovery_enabled" {
 variable "packer_amd64_builder" {
   type = object({
     server_type     = optional(string, "cpx11")
-    server_location = optional(string, "fsn1")
+    server_location = optional(string, "ash")
   })
   default     = {}
   description = "Configuration for the server used when building the Talos AMD64 image with Packer."
@@ -533,7 +558,7 @@ variable "packer_arm64_builder" {
 # Talos
 variable "talos_version" {
   type        = string
-  default     = "v1.11.1"
+  default     = "v1.11.1" # https://github.com/siderolabs/talos
   description = "Specifies the version of Talos to be used in generated machine configurations."
 }
 
@@ -738,7 +763,7 @@ variable "talos_extra_remote_manifests" {
 # Talos Backup
 variable "talos_backup_version" {
   type        = string
-  default     = "v0.1.0-beta.2-1-g9ccc125"
+  default     = "v0.1.0-beta.3-3-g38dad7c"
   description = "Specifies the version of Talos Backup to be used in generated machine configurations."
 }
 
@@ -804,6 +829,12 @@ variable "talos_backup_age_x25519_public_key" {
   description = "AGE X25519 Public Key for client side Talos Backup encryption."
 }
 
+variable "talos_backup_enable_compression" {
+  type        = bool
+  default     = false
+  description = "Enable ETCD snapshot compression with zstd algorithm."
+}
+
 variable "talos_backup_schedule" {
   type        = string
   default     = "0 * * * *"
@@ -814,7 +845,7 @@ variable "talos_backup_schedule" {
 # Kubernetes
 variable "kubernetes_version" {
   type        = string
-  default     = "v1.33.4"
+  default     = "v1.33.4" # https://github.com/kubernetes/kubernetes
   description = "Specifies the Kubernetes version to deploy."
 }
 
@@ -1187,7 +1218,7 @@ variable "cilium_helm_chart" {
 
 variable "cilium_helm_version" {
   type        = string
-  default     = "1.18.2"
+  default     = "1.18.3"
   description = "Version of the Cilium Helm chart to deploy."
 }
 
@@ -1362,7 +1393,7 @@ variable "cert_manager_helm_chart" {
 
 variable "cert_manager_helm_version" {
   type        = string
-  default     = "v1.18.2"
+  default     = "v1.18.3"
   description = "Version of the Cert Manager Helm chart to deploy."
 }
 
@@ -1658,7 +1689,7 @@ variable "prometheus_operator_crds_enabled" {
 
 variable "prometheus_operator_crds_version" {
   type        = string
-  default     = "v0.84.0" # https://github.com/prometheus-operator/prometheus-operator
+  default     = "v0.86.1" # https://github.com/prometheus-operator/prometheus-operator
   description = "Specifies the version of the Prometheus Operator Custom Resource Definitions (CRDs) to deploy."
 }
 

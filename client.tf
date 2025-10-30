@@ -126,3 +126,87 @@ resource "terraform_data" "create_kubeconfig" {
 
   depends_on = [talos_machine_configuration_apply.control_plane]
 }
+
+data "external" "client_prerequisites_check" {
+  count = var.client_prerequisites_check_enabled ? 1 : 0
+
+  program = [
+    "sh", "-c", <<-EOT
+      set -eu
+
+      missing=0
+
+      if ! command -v packer >/dev/null 2>&1; then
+          printf '\n%s' ' - packer is not installed or not in PATH. Install it at https://developer.hashicorp.com/packer/install' >&2
+          missing=1
+      fi
+
+      if ! command -v jq >/dev/null 2>&1; then
+          printf '\n%s' ' - jq is not installed or not in PATH. Install it at https://jqlang.org/download/' >&2
+          missing=1
+      fi
+
+      if ! command -v talosctl >/dev/null 2>&1; then
+          printf '\n%s' ' - talosctl is not installed or not in PATH. Install it at https://www.talos.dev/latest/talos-guides/install/talosctl' >&2
+          missing=1
+      fi
+
+      printf '%s' '{}'
+      exit "$missing"
+    EOT
+  ]
+}
+
+data "external" "talosctl_version_check" {
+  count = var.talosctl_version_check_enabled ? 1 : 0
+
+  program = [
+    "sh", "-c", <<-EOT
+      set -eu
+
+      parse() {
+        case $1 in
+          *[vV][0-9]*.[0-9]*.[0-9]*)
+            v=$${1##*[vV]}
+            maj=$${v%%.*}
+            r=$${v#*.}
+            min=$${r%%.*}
+            patch=$${r#*.}
+            patch=$${patch%%[!0-9]*}
+            printf '%s %s %s\n' "$maj" "$min" "$patch"
+            return 0
+            ;;
+        esac
+        return 1
+      }
+
+      parsed_version=$(
+        talosctl version --client --short |
+        while IFS= read -r line; do
+          if out=$(parse "$line"); then
+            printf '%s\n' "$out"
+            break
+          fi
+        done
+      )
+
+      if [ -z "$parsed_version" ]; then
+        printf '%s\n' "Could not parse talosctl client version" >&2
+        exit 1
+      fi
+
+      set -- $parsed_version; major=$1; minor=$2; patch=$3
+      if [ "$major" -lt "${local.talos_version_major}" ] ||
+       { [ "$major" -eq "${local.talos_version_major}" ] && [ "$minor" -lt "${local.talos_version_minor}" ]; } ||
+       { [ "$major" -eq "${local.talos_version_major}" ] && [ "$minor" -eq "${local.talos_version_minor}" ] && [ "$patch" -lt "${local.talos_version_patch}" ]; }
+      then
+        printf '%s\n' "talosctl version ($major.$minor.$patch) is lower than Talos target version: ${local.talos_version_major}.${local.talos_version_minor}.${local.talos_version_patch}" >&2
+        exit 1
+      fi
+
+      printf '%s' "{\"talosctl_version\": \"$major.$minor.$patch\"}"
+    EOT
+  ]
+
+  depends_on = [data.external.client_prerequisites_check]
+}

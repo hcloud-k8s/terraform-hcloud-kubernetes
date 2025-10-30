@@ -149,8 +149,8 @@ locals {
   # documentation 2001:db8::/32, IPv4-mapped ::ffff:0:0/96
   ipv6_non_public_pattern = "^(::$|::1$|fe[89ab][0-9a-f]:|f[cd][0-9a-f]*:|ff[0-9a-f]*:|2001:db8:|::ffff:)"
 
-  cluster_autoscaler_server = var.cluster_autoscaler_discovery_enabled ? {
-    for m in jsondecode(data.external.talos_members[0].result.cluster_autoscaler) : m.spec.hostname => {
+  talos_discovery_cluster_autoscaler = {
+    for m in jsondecode(data.external.talos_member.result.cluster_autoscaler) : m.spec.hostname => {
       nodepool = regex(local.cluster_autoscaler_hostname_pattern, m.spec.hostname)[0]
 
       private_ipv4_address = try(
@@ -183,12 +183,10 @@ locals {
         ][0], null
       )
     }
-  } : {}
+  }
 }
 
-data "external" "talos_members" {
-  count = var.cluster_autoscaler_discovery_enabled ? 1 : 0
-
+data "external" "talos_member" {
   program = [
     "sh", "-c", <<-EOT
       set -eu
@@ -198,15 +196,30 @@ data "external" "talos_members" {
       jq -r '.talosconfig' > "$talosconfig"
 
       if ${local.cluster_initialized}; then
-        if json=$(talosctl --talosconfig "$talosconfig" get member -n '${terraform_data.talos_access_data.output.talos_primary_node}' -o json); then
-          printf '%s' "$json" | \
-          jq -c -s '{cluster_autoscaler: (map(select(.spec.hostname | test("${local.cluster_autoscaler_hostname_pattern}"))) | tostring)}'
+        if talos_member_json=$(talosctl --talosconfig "$talosconfig" get member -n '${terraform_data.talos_access_data.output.talos_primary_node}' -o json); then
+          printf '%s' "$talos_member_json" | jq -c -s '{
+            control_plane: (
+              map(select(.spec.machineType == "controlplane")) | tostring
+            ),
+            worker: (
+              map(select(
+                .spec.machineType == "worker"
+                and (.spec.hostname | test("${local.cluster_autoscaler_hostname_pattern}") | not)
+              )) | tostring
+            ),
+            cluster_autoscaler: (
+              map(select(
+                .spec.machineType == "worker"
+                and (.spec.hostname | test("${local.cluster_autoscaler_hostname_pattern}"))
+              )) | tostring
+            )
+          }'
         else
-          echo "talosctl failed" >&2
+          printf '%s\n' "talosctl failed" >&2
           exit 1
         fi
       else
-        echo '{"cluster_autoscaler": "[]"}'
+        printf '%s\n' '{"control_plane":"[]","cluster_autoscaler":"[]","worker":"[]"}'
       fi
     EOT
   ]
@@ -216,7 +229,10 @@ data "external" "talos_members" {
   }
 
   depends_on = [
-    terraform_data.upgrade_control_plane,
-    terraform_data.upgrade_worker
+    data.external.client_prerequisites_check,
+    data.external.talosctl_version_check,
+    data.talos_machine_configuration.control_plane,
+    data.talos_machine_configuration.worker,
+    data.talos_machine_configuration.cluster_autoscaler
   ]
 }

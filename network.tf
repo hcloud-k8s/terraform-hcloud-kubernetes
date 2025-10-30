@@ -37,9 +37,9 @@ locals {
   worker_private_ipv4_list = compact(distinct([for server in hcloud_server.worker : tolist(server.network)[0].ip]))
 
   # Lists for cluster autoscaler nodes
-  cluster_autoscaler_public_ipv4_list  = compact(distinct([for server in local.cluster_autoscaler_server : server.public_ipv4_address]))
-  cluster_autoscaler_public_ipv6_list  = compact(distinct([for server in local.cluster_autoscaler_server : server.public_ipv6_address]))
-  cluster_autoscaler_private_ipv4_list = compact(distinct([for server in local.cluster_autoscaler_server : server.private_ipv4_address]))
+  cluster_autoscaler_public_ipv4_list  = compact(distinct([for server in local.talos_discovery_cluster_autoscaler : server.public_ipv4_address]))
+  cluster_autoscaler_public_ipv6_list  = compact(distinct([for server in local.talos_discovery_cluster_autoscaler : server.public_ipv6_address]))
+  cluster_autoscaler_private_ipv4_list = compact(distinct([for server in local.talos_discovery_cluster_autoscaler : server.private_ipv4_address]))
 }
 
 data "hcloud_location" "this" {

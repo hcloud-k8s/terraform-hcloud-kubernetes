@@ -85,3 +85,14 @@ output "cilium_encryption_info" {
     } : {}
   }
 }
+
+output "kube_api_load_balancer" {
+  description = "Details about the Kubernetes API load balancer"
+  value = var.kube_api_load_balancer_enabled ? {
+    id           = hcloud_load_balancer.kube_api[0].id
+    name         = local.kube_api_load_balancer_name
+    public_ipv4  = local.kube_api_load_balancer_public_ipv4
+    public_ipv6  = local.kube_api_load_balancer_public_ipv6
+    private_ipv4 = local.kube_api_load_balancer_private_ipv4
+  } : null
+}

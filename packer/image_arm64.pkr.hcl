@@ -50,10 +50,10 @@ build {
       <<-EOT
         set -euo pipefail
 
-        echo 'Zeroing disk first before writing Talos image'
+        printf '%s\n' 'Zeroing disk first before writing Talos image'
         blkdiscard -v /dev/sda 2>/dev/null
 
-        echo 'Download Talos ${var.talos_version} image (${var.talos_schematic_id})'
+        printf '%s\n' 'Downloading Talos ${var.talos_version} (${var.talos_schematic_id}) ...'
         wget \
           --quiet \
           --timeout=20 \
@@ -66,7 +66,7 @@ build {
         | xz -T0 -dc \
         | dd of=/dev/sda bs=1M iflag=fullblock oflag=direct conv=fsync status=none
 
-        echo 'Talos ${var.talos_version} image (${var.talos_schematic_id}) downloaded'
+        printf '%s\n' 'Talos ${var.talos_version} (${var.talos_schematic_id}) downloaded'
       EOT
     ]
   }

@@ -62,7 +62,8 @@ locals {
                   { name = "BUCKET", value = local.talos_backup_s3_bucket },
                   { name = "CLUSTER_NAME", value = var.cluster_name },
                   { name = "S3_PREFIX", value = var.talos_backup_s3_prefix },
-                  { name = "USE_PATH_STYLE", value = tostring(var.talos_backup_s3_path_style) }
+                  { name = "USE_PATH_STYLE", value = tostring(var.talos_backup_s3_path_style) },
+                  { name = "ENABLE_COMPRESSION", value = tostring(var.talos_backup_enable_compression) }
                 ]
                 volumeMounts = [
                   { name = "tmp", mountPath = "/tmp" },
