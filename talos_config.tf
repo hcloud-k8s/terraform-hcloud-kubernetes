@@ -170,7 +170,7 @@ locals {
               dhcp      = true
               dhcpOptions = {
                 ipv4 = var.talos_public_ipv4_enabled
-                ipv6 = false
+                ipv6 = var.talos_public_ipv6_enabled
               }
               vip = local.control_plane_public_vip_ipv4_enabled ? {
                 ip = local.control_plane_public_vip_ipv4
