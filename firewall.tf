@@ -1,4 +1,6 @@
 locals {
+  firewall_external = var.firewall_id != null
+
   firewall_kube_api_source = (
     var.firewall_kube_api_source != null ?
     var.firewall_kube_api_source :
@@ -9,11 +11,12 @@ locals {
     var.firewall_talos_api_source :
     var.firewall_api_source
   )
-  firewall_use_current_ipv4 = local.network_public_ipv4_enabled && coalesce(
+
+  firewall_use_current_ipv4 = !local.firewall_external && local.network_public_ipv4_enabled && coalesce(
     var.firewall_use_current_ipv4,
     var.cluster_access == "public" && local.firewall_kube_api_source == null && local.firewall_talos_api_source == null
   )
-  firewall_use_current_ipv6 = local.network_public_ipv6_enabled && coalesce(
+  firewall_use_current_ipv6 = !local.firewall_external && local.network_public_ipv6_enabled && coalesce(
     var.firewall_use_current_ipv6,
     var.cluster_access == "public" && local.firewall_kube_api_source == null && local.firewall_talos_api_source == null
   )
@@ -77,6 +80,8 @@ locals {
   firewall_rules_list = values(
     merge(local.firewall_extra_rules, local.firewall_rules)
   )
+
+  firewall_id = local.firewall_external ? var.firewall_id : hcloud_firewall.this[0].id
 }
 
 data "http" "current_ipv4" {
@@ -116,7 +121,8 @@ data "http" "current_ipv6" {
 }
 
 resource "hcloud_firewall" "this" {
-  name = var.cluster_name
+  count = local.firewall_external ? 0 : 1
+  name  = var.cluster_name
 
   dynamic "rule" {
     for_each = local.firewall_rules_list

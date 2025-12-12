@@ -37,9 +37,7 @@ resource "hcloud_server" "control_plane" {
     }
   )
 
-  firewall_ids = [
-    hcloud_firewall.this.id
-  ]
+  firewall_ids = [local.firewall_id]
 
   public_net {
     ipv4_enabled = var.talos_public_ipv4_enabled
@@ -103,9 +101,7 @@ resource "hcloud_server" "worker" {
     }
   )
 
-  firewall_ids = [
-    hcloud_firewall.this.id
-  ]
+  firewall_ids = [local.firewall_id]
 
   public_net {
     ipv4_enabled = var.talos_public_ipv4_enabled

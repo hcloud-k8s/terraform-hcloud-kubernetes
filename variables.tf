@@ -256,6 +256,12 @@ variable "firewall_talos_api_source" {
   description = "Source networks that have access to Talos API. If set, this overrides the firewall_use_current_ipv4 and firewall_use_current_ipv6 settings."
 }
 
+variable "firewall_id" {
+  type        = number
+  default     = null
+  description = "ID of an existing Hetzner Cloud Firewall to use instead of creating a new one. When set, firewall management is delegated to an external resource and this module will only attach the firewall to servers."
+}
+
 
 # Control Plane
 variable "control_plane_public_vip_ipv4_enabled" {

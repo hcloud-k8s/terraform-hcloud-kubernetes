@@ -87,7 +87,7 @@ data "helm_template" "cluster_autoscaler" {
       extraEnv = {
         HCLOUD_CLUSTER_CONFIG_FILE     = "/config/cluster-config"
         HCLOUD_SERVER_CREATION_TIMEOUT = "10"
-        HCLOUD_FIREWALL                = tostring(hcloud_firewall.this.id)
+        HCLOUD_FIREWALL                = tostring(local.firewall_id)
         HCLOUD_SSH_KEY                 = tostring(hcloud_ssh_key.this.id)
         HCLOUD_PUBLIC_IPV4             = tostring(var.talos_public_ipv4_enabled)
         HCLOUD_PUBLIC_IPV6             = tostring(var.talos_public_ipv6_enabled)
