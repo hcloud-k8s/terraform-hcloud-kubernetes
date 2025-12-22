@@ -4,7 +4,7 @@
   <h1>Hcloud Kubernetes</h1>
 
   <p>
-    Terraform Module to deploy Kubernetes on Hetzner Cloud! 
+    Terraform Module to deploy Kubernetes on Hetzner Cloud!
   </p>
 
 <!-- Badges -->
@@ -76,6 +76,7 @@ Provision a highly available and secure Kubernetes cluster on Hetzner Cloud, def
 * **Architecture Flexibility:** Supports deployment on both **AMD64** and **ARM64** instances with automated image synchronization.
 * **Maximized Uptime:** Delivers high availability across all control plane and worker components for consistent, reliable performance.
 * **Elastic Scaling:** Supports automatic scaling of both **nodes** and **pods** to effortlessly accommodate dynamic workloads.
+* **Dedicated Servers:** Integrate Hetzner Robot **bare metal servers** as worker nodes via vSwitch for high-performance workloads.
 * **Quick Start Addons:** Optional, pre-integrated Ingress Controller and Cert Manager simplifies the rapid deployment of applications.
 * **Dual-Stack Networking:** Load Balancers offer native support for both **IPv4** and **IPv6** for modern, efficient traffic management.
 * **Isolated Network Fabric:** Ensures all internal cluster traffic is confined to an isolated, private Hetzner Cloud Network.
@@ -384,13 +385,224 @@ kubectl -n kube-system scale deployment cluster-autoscaler-hetzner-cluster-autos
 </details>
 
 
+<!-- Dedicated Servers -->
+<details>
+<summary><b>Dedicated Servers (Hetzner Robot)</b></summary>
+
+This module supports adding Hetzner Robot dedicated servers (bare metal) as worker nodes to your cluster. Dedicated servers connect to the Hetzner Cloud Network via a vSwitch, allowing them to communicate with cloud-based nodes.
+
+#### Prerequisites
+
+Before adding dedicated servers, you must:
+
+1. **Provision the dedicated server** via [Hetzner Robot](https://robot.hetzner.com/)
+2. **Create a vSwitch** in the Hetzner Robot console and attach it to both:
+   - Your dedicated server
+   - The Hetzner Cloud Network used by this module
+3. **Configure the network interface** on your dedicated server for the vSwitch VLAN
+
+> [!NOTE]
+> This module only manages the Kubernetes/Talos side of dedicated servers. Server provisioning and vSwitch configuration must be done externally through the Hetzner Robot console or API.
+
+#### Modes
+
+Dedicated servers support two operational modes:
+
+| Mode | Description |
+|------|-------------|
+| `talos` | Server runs Talos Linux, fully managed by Terraform like cloud workers |
+| `manual` | Server runs a custom OS and joins via bootstrap token |
+
+#### Talos Mode Configuration
+
+In Talos mode, the module generates machine configurations and manages upgrades automatically.
+
+Example `kubernetes.tf` configuration:
+```hcl
+dedicated_servers = [
+  {
+    hostname          = "my-dedicated-server"
+    vswitch_id        = FIXME                    # Your vSwitch ID from Hetzner Robot, e.g. 12345
+    private_ipv4      = "FIXME"            # IP within your node subnet range, e.g. 10.0.64.100
+    network_interface = "FIXME"              # Interface connected to vSwitch, e.g. enp0s31f6
+    mode              = "talos"
+    labels            = { "node-type" = "dedicated" }
+    taints            = ["dedicated=true:NoSchedule"]
+  }
+]
+```
+
+##### Manual Talos Installation
+
+For Talos mode servers, you need to install Talos Linux on the dedicated server:
+
+1. **Boot the server into rescue mode** via Hetzner Robot
+2. **Download the Talos image:**
+   ```sh
+   wget -O /tmp/talos.raw.xz "https://factory.talos.dev/image/<schematic>/<version>/hcloud-amd64.raw.xz"
+   ```
+   > Get the schematic ID from the module output or use the default Talos factory image.
+
+3. **Write the image to disk:**
+   ```sh
+   xz -d -c /tmp/talos.raw.xz | dd of=/dev/sda bs=4M status=progress && sync
+   ```
+
+4. **Reboot the server** (it will boot into Talos maintenance mode)
+
+5. **Apply the machine configuration** (after running `terraform apply`):
+   ```sh
+   # Get the config from terraform output
+   terraform output -json dedicated_servers_talos_machine_configurations
+
+   # Apply to the server
+   talosctl apply-config --insecure \
+     --nodes <your nodes ip> \
+     --file machine-config.yaml
+   ```
+
+##### Automated Talos Installation (Optional)
+
+For automated installation via SSH:
+1. Boot the server into rescue mode
+1. Apply the module configuration with a config similar to the following:
+
+```hcl
+dedicated_servers = [
+  {
+    hostname            = "my-dedicated-server"
+    vswitch_id          = FIXME
+    private_ipv4        = "FIXME"
+    network_interface   = "FIXME"
+    mode                = "talos"
+    install_talos       = true                    # Enable automated installation
+    install_disk        = "/dev/sda"              # Target disk for Talos
+    rescue_ssh_host     = "203.0.113.10"          # Server's public IP in rescue mode
+    rescue_ssh_key_path = "~/.ssh/id_rsa"         # SSH key for rescue access
+  }
+]
+```
+
+> [!WARNING]
+> Automated installation requires the server to be in rescue mode before running `terraform apply`. The server will be rebooted after installation.
+
+#### Manual Mode Configuration
+
+In manual mode, the module generates Kubernetes bootstrap tokens for joining nodes running custom operating systems (e.g., Ubuntu, Debian with `kubeadm`).
+
+Example `kubernetes.tf` configuration:
+```hcl
+dedicated_servers = [
+  {
+    hostname          = "my-dedicated-server"
+    vswitch_id        = FIXME
+    private_ipv4      = "FIXME"
+    network_interface = "FIXME"
+    mode              = "manual"
+    labels            = { "os" = "FIXME" }
+  }
+]
+```
+
+After `terraform apply`, retrieve the join information:
+```sh
+terraform output -json dedicated_servers_join_commands
+```
+
+This provides:
+- Bootstrap token for authentication
+- API server endpoint
+- Bootstrap token secret manifest (apply to cluster first)
+- Join instructions for kubeadm
+
+##### Joining with `kubeadm`
+
+```sh
+# 1. Apply the bootstrap token secret to the cluster
+kubectl apply -f bootstrap-token-secret.yaml
+
+# 2. Join the node
+kubeadm join <api-server>:6443 \
+  --token <bootstrap-token> \
+  --discovery-token-unsafe-skip-ca-verification \
+  --node-name dedicated-worker-1
+```
+
+#### Configuration Patches
+
+Apply additional Talos configuration to all dedicated servers in Talos mode:
+
+```hcl
+dedicated_servers_config_patches = [
+  {
+    machine = {
+      sysctls = {
+        "vm.max_map_count" = "262144"
+      }
+    }
+  }
+]
+```
+
+#### Network Architecture
+
+Dedicated servers connect via vSwitch subnets:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Hetzner Cloud Network                     │
+│                        10.0.0.0/16                           │
+├─────────────────────────────────────────────────────────────┤
+│  Cloud Subnets (type: cloud)     │  vSwitch Subnets          │
+│  ┌───────────────────────────┐   │  ┌─────────────────────┐  │
+│  │ Control Plane: 10.0.64.0  │   │  │ vSwitch: 10.0.95.0  │  │
+│  │ Workers:       10.0.65.0  │   │  │ (auto-allocated)    │  │
+│  └───────────────────────────┘   │  └─────────────────────┘  │
+│              │                   │           │               │
+│              ▼                   │           ▼               │
+│  ┌───────────────────────────┐   │  ┌─────────────────────┐  │
+│  │   Cloud VMs (Hcloud API)  │   │  │  Dedicated Servers  │  │
+│  │   cpx22, cax31, etc.      │   │  │  (Hetzner Robot)    │  │
+│  └───────────────────────────┘   │  └─────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+> [!NOTE]
+> The IPs shown here are examples and may not match your actual cluster configuration.
+
+The module automatically creates vSwitch-type subnets for each unique vSwitch ID.
+
+#### Upgrades
+
+Dedicated servers in Talos mode are upgraded automatically alongside cloud workers when you change `talos_version` or the Talos schematic.
+The upgrade sequence is:
+
+1. Control plane nodes
+2. Cloud worker nodes
+3. Cluster autoscaler nodes
+4. **Dedicated server nodes**
+5. Kubernetes version
+
+Manual mode servers must be upgraded independently using your OS-specific tooling.
+
+#### Outputs
+
+| Output | Description |
+|--------|-------------|
+| `dedicated_servers_private_ipv4_list` | List of all dedicated server private IPs |
+| `dedicated_servers_talos_machine_configurations` | Talos configs for manual installation |
+| `dedicated_servers_join_commands` | Bootstrap tokens and join instructions for manual mode |
+
+</details>
+
+
 <!-- Cilium Advanced Configuration -->
 <details>
 <summary><b>Cilium Advanced Configuration</b></summary>
 
 #### Cilium Transparent Encryption
 
-This module enables [Cilium Transparent Encryption](https://cilium.io/use-cases/transparent-encryption/) feature by default.  
+This module enables [Cilium Transparent Encryption](https://cilium.io/use-cases/transparent-encryption/) feature by default.
 
 All pod network traffic is encrypted using WireGuard (Default) or  protocols, includes automatic key rotation and efficient in-kernel encryption, covering all traffic types.
 
@@ -635,7 +847,7 @@ spec:
 ```
 
 > ⚠️ **Important:** When using PROXY protocol with Cilium Gateway API (enabled by default), external IPv6 connections will not work due to a bug in Cilium’s Gateway API implementation: [https://github.com/cilium/cilium/issues/42950](https://github.com/cilium/cilium/issues/42950)
-> 
+>
 > If you need IPv6, disable PROXY protocol by adding the `load-balancer.hetzner.cloud/uses-proxyprotocol: "false"` infrastructure annotation and setting this module config:
 > ```
 > cilium_gateway_api_proxy_protocol_enabled = false
@@ -746,7 +958,7 @@ Here is a table with more example calculations:
 | **10.0.0.0/19** | /28 (16 IPs)     | 10.0.8.0/22  (64) | 10.0.12.0/22 (1024) | 10.0.16.0/20 (16)   |
 | **10.0.0.0/20** | /29 (8 IPs)      | 10.0.4.0/23  (64) | 10.0.6.0/23 (512)   | 10.0.8.0/21 (8)     |
 | **10.0.0.0/21** | /30 (4 IPs)      | 10.0.2.0/24  (64) | 10.0.3.0/24 (256)   | 10.0.4.0/22 (4)     |
- 
+
 </details>
 
 
@@ -963,7 +1175,7 @@ talos_extra_inline_manifests = [
   }
 ]
 ```
- 
+
 </details>
 
 
@@ -973,7 +1185,7 @@ talos_extra_inline_manifests = [
 
 Talos supports two node discovery mechanisms:
 
-- **Discovery Service Registry** (default): A public, external registry operated by Sidero Labs that works even when Kubernetes is unavailable. Nodes must have outbound access to TCP port 443 to communicate with it.  
+- **Discovery Service Registry** (default): A public, external registry operated by Sidero Labs that works even when Kubernetes is unavailable. Nodes must have outbound access to TCP port 443 to communicate with it.
 - **Kubernetes Registry**: Relies on Kubernetes Node metadata stored in etcd.
 
 This module uses the discovery service to perform additional health checks during Talos upgrades, Kubernetes upgrades, and Kubernetes manifest synchronization. If no discovery mechanism is enabled, these additional checks will be skipped.
@@ -997,7 +1209,7 @@ For more details, refer to the [official Talos discovery guide](https://www.talo
 <details>
 <summary><b>Kubernetes RBAC</b></summary>
 
-This module allows you to create custom Kubernetes RBAC (Role-Based Access Control) roles and cluster roles that define specific permissions for users and groups. RBAC controls what actions users can perform on which Kubernetes resources.  
+This module allows you to create custom Kubernetes RBAC (Role-Based Access Control) roles and cluster roles that define specific permissions for users and groups. RBAC controls what actions users can perform on which Kubernetes resources.
 These custom roles can be used independently or combined with OIDC group mappings to automatically assign permissions based on user group membership from your identity provider.
 
 #### Example Configuration
@@ -1103,7 +1315,7 @@ First, verify that your OIDC provider is returning proper JWT tokens. Replace th
 kubectl oidc-login setup \
   --oidc-issuer-url=https://your-oidc-provider.com \
   --oidc-client-id=your-client-id \
-  --oidc-client-secret=your-client-secret \           
+  --oidc-client-secret=your-client-secret \
   --oidc-extra-scope=openid,email,profile             # Add or change the scopes according to your IDP
 ```
 
@@ -1203,7 +1415,7 @@ In this module, upgrades are conducted with care. You will consistently receive 
 - HCSI: https://github.com/hetznercloud/csi-driver/blob/main/docs/kubernetes/README.md#versioning-policy
 - Longhorn: https://longhorn.io/docs/1.10.0/best-practices/#kubernetes-version
 - Cilium: https://github.com/cilium/cilium/blob/v1.15/Documentation/network/kubernetes/requirements.rst#kubernetes-version
-- Ingress Nginx: https://github.com/kubernetes/ingress-nginx?tab=readme-ov-file#supported-versions-table 
+- Ingress Nginx: https://github.com/kubernetes/ingress-nginx?tab=readme-ov-file#supported-versions-table
 - Cert Manager: https://cert-manager.io/docs/releases/
 - Autoscaler: https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/README.md#releases
 -->
