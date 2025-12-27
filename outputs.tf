@@ -96,3 +96,66 @@ output "kube_api_load_balancer" {
     private_ipv4 = local.kube_api_load_balancer_private_ipv4
   } : null
 }
+
+
+# Dedicated Servers (Hetzner Robot)
+output "dedicated_servers_private_ipv4_list" {
+  description = "List of private IPv4 addresses for all dedicated servers."
+  value       = local.dedicated_servers_private_ipv4_list
+}
+
+output "dedicated_servers_talos_machine_configurations" {
+  description = "Talos machine configurations for dedicated servers in Talos mode. Use these for manual installation."
+  sensitive   = true
+  value = {
+    for hostname, config in data.talos_machine_configuration.dedicated_server :
+    hostname => {
+      machine_configuration = config.machine_configuration
+      private_ipv4          = local.dedicated_servers_map[hostname].private_ipv4
+      install_command       = <<-EOT
+        # Apply this configuration after Talos is installed and booted:
+        talosctl apply-config --insecure \
+          --nodes ${local.dedicated_servers_map[hostname].private_ipv4} \
+          --file machine-config.yaml
+      EOT
+    }
+  }
+}
+
+output "dedicated_servers_join_commands" {
+  description = "Kubernetes join commands for dedicated servers in manual mode."
+  sensitive   = true
+  value = {
+    for hostname, info in local.dedicated_servers_join_info :
+    hostname => {
+      private_ipv4 = info.private_ipv4
+      token        = info.token
+      api_server   = info.api_server
+      # Bootstrap token secret manifest - apply this first
+      bootstrap_secret_manifest = info.bootstrap_secret_manifest
+      # Instructions for joining the cluster
+      instructions = <<-EOT
+        # Step 1: Apply the bootstrap token secret to the cluster
+        # Save the bootstrap_secret_manifest to a file and apply:
+        kubectl apply -f bootstrap-token-secret.yaml
+
+        # Step 2: Join the node using kubeadm:
+        kubeadm join ${info.api_server} \
+          --token ${info.token} \
+          --discovery-token-unsafe-skip-ca-verification \
+          --node-name ${hostname}
+
+        # Alternative: If using kubelet directly:
+        # 1. Create bootstrap kubeconfig with the token
+        # 2. Start kubelet with:
+        #    --bootstrap-kubeconfig=/path/to/bootstrap.kubeconfig
+        #    --kubeconfig=/var/lib/kubelet/kubeconfig
+        #    --hostname-override=${hostname}
+        #    --node-ip=${info.private_ipv4}
+        #    --cloud-provider=external
+      EOT
+      labels       = info.labels
+      taints       = info.taints
+    }
+  }
+}

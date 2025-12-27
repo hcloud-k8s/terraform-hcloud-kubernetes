@@ -84,7 +84,7 @@ locals {
       "--talosconfig \"$talosconfig\"",
       "--server=true",
       "--control-plane-nodes '${join(",", local.control_plane_private_ipv4_list)}'",
-      "--worker-nodes '${join(",", concat(local.worker_private_ipv4_list, local.cluster_autoscaler_private_ipv4_list))}'"
+      "--worker-nodes '${join(",", concat(local.worker_private_ipv4_list, local.cluster_autoscaler_private_ipv4_list, local.dedicated_servers_talos_private_ipv4_list))}'"
     ]
   )
   talosctl_retry_snippet = join(" ",
@@ -394,6 +394,96 @@ resource "terraform_data" "upgrade_cluster_autoscaler" {
   ]
 }
 
+resource "terraform_data" "upgrade_dedicated_server" {
+  count = length(local.dedicated_servers_talos) > 0 ? 1 : 0
+
+  triggers_replace = [
+    var.talos_version,
+    local.talos_schematic_id
+  ]
+
+  provisioner "local-exec" {
+    when    = create
+    quiet   = true
+    command = <<-EOT
+      set -eu
+
+      talosconfig=$(mktemp)
+      trap 'rm -f "$talosconfig"' EXIT HUP INT TERM QUIT PIPE
+      printf '%s' "$TALOSCONFIG" > "$talosconfig"
+
+      if ${local.cluster_initialized}; then
+        printf '%s\n' "Start upgrading Dedicated Server Nodes"
+
+        retry=1
+        while ${var.cluster_healthcheck_enabled} && ! ${local.talosctl_health_check_command} -n '${local.talos_primary_node_private_ipv4}'; do
+          ${local.talosctl_retry_snippet}
+        done
+
+        set -- ${join(" ", local.dedicated_servers_talos_private_ipv4_list)}
+        for host in "$@"; do
+          printf '%s\n' "Checking node $host ..."
+
+          retry=1
+          while true; do
+            current_version=$(${local.talosctl_get_version_command})
+            current_schematic=$(${local.talosctl_get_schematic_command})
+            if [ "$current_version" = "${var.talos_version}" ] && [ "$current_schematic" = "${local.talos_schematic_id}" ]; then
+              if [ "$retry" -gt 1 ]; then
+                printf '%s\n' "Node $host is already at Talos $current_version ($current_schematic). Waiting for cluster to stabilize ..."
+                sleep 5
+
+                retry=1
+                while ${var.cluster_healthcheck_enabled} && ! ${local.talosctl_health_check_command} -n '${local.talos_primary_node_private_ipv4}'; do
+                  ${local.talosctl_retry_snippet}
+                done
+                printf '%s\n' "Node $host upgraded successfully"
+              else
+                printf '%s\n' "Node $host is already at Talos $current_version ($current_schematic). Skipping upgrade ..."
+              fi
+              break
+            elif [ -n "$current_version" ] && [ -n "$current_schematic" ]; then
+              printf '%s\n' "Node $host is currently at Talos $current_version ($current_schematic)"
+            else
+              printf '%s\n' "Could not determine current Talos version or schematic for node $host"
+            fi
+
+            printf '%s\n' "Upgrading node $host to Talos ${var.talos_version} (${local.talos_schematic_id}) ..."
+            if ${local.talosctl_upgrade_command}; then
+              printf '%s\n' "Upgrade successfully completed for node $host"
+              sleep 5
+
+              retry=1
+              while ${var.cluster_healthcheck_enabled} && ! ${local.talosctl_health_check_command} -n '${local.talos_primary_node_private_ipv4}'; do
+                ${local.talosctl_retry_snippet}
+              done
+
+              printf '%s\n' "Node $host upgraded successfully"
+              break
+            fi
+            ${local.talosctl_retry_snippet}
+          done
+        done
+        printf '%s\n' "Dedicated Server Nodes upgraded successfully"
+      else
+        printf '%s\n' "Cluster not initialized, skipping Dedicated Server Node upgrade"
+      fi
+    EOT
+
+    environment = {
+      TALOSCONFIG = nonsensitive(data.talos_client_configuration.this.talos_config)
+    }
+  }
+
+  depends_on = [
+    data.external.talosctl_version_check,
+    data.talos_machine_configuration.dedicated_server,
+    terraform_data.upgrade_control_plane,
+    terraform_data.upgrade_worker,
+    terraform_data.upgrade_cluster_autoscaler
+  ]
+}
+
 resource "terraform_data" "upgrade_kubernetes" {
   triggers_replace = [var.kubernetes_version]
 
@@ -441,7 +531,8 @@ resource "terraform_data" "upgrade_kubernetes" {
     data.external.talosctl_version_check,
     terraform_data.upgrade_control_plane,
     terraform_data.upgrade_worker,
-    terraform_data.upgrade_cluster_autoscaler
+    terraform_data.upgrade_cluster_autoscaler,
+    terraform_data.upgrade_dedicated_server
   ]
 }
 
@@ -608,7 +699,8 @@ resource "terraform_data" "synchronize_manifests" {
     talos_machine_bootstrap.this,
     talos_machine_configuration_apply.control_plane,
     talos_machine_configuration_apply.worker,
-    terraform_data.talos_machine_configuration_apply_cluster_autoscaler
+    terraform_data.talos_machine_configuration_apply_cluster_autoscaler,
+    talos_machine_configuration_apply.dedicated_server
   ]
 }
 
@@ -646,7 +738,7 @@ resource "terraform_data" "talos_access_data" {
     talos_primary_node  = local.talos_primary_node_private_ipv4
     endpoints           = local.talos_endpoints
     control_plane_nodes = local.control_plane_private_ipv4_list
-    worker_nodes        = local.worker_private_ipv4_list
+    worker_nodes        = concat(local.worker_private_ipv4_list, local.cluster_autoscaler_private_ipv4_list, local.dedicated_servers_talos_private_ipv4_list)
     kube_api_url        = local.kube_api_url_external
   }
 }
