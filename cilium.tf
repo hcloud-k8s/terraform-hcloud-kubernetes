@@ -96,7 +96,7 @@ data "helm_template" "cilium" {
         enabled = var.cilium_egress_gateway_enabled
       }
       loadBalancer = {
-        acceleration = "native"
+        acceleration = var.cilium_loadbalancer_acceleration
       }
       gatewayAPI = {
         enabled               = var.cilium_gateway_api_enabled

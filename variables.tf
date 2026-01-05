@@ -1444,6 +1444,17 @@ variable "cilium_socket_lb_host_namespace_only_enabled" {
   description = "Limit Cilium's socket-level load-balancing to the host namespace only."
 }
 
+variable "cilium_loadbalancer_acceleration" {
+  type        = string
+  description = "Cilium XDP Acceleration mode"
+  default     = "native"
+
+  validation {
+    condition     = contains(["native", "best-effort"], var.cilium_loadbalancer_acceleration)
+    error_message = "cilium_loadbalancer_acceleration must be one of: native or best-effort"
+  }
+}
+
 variable "cilium_routing_mode" {
   type        = string
   description = "Cilium routing mode (e.g., 'native', 'tunnel', etc.)"
