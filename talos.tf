@@ -566,7 +566,7 @@ resource "talos_machine_bootstrap" "this" {
 resource "terraform_data" "synchronize_manifests" {
   triggers_replace = [
     nonsensitive(sha1(jsonencode(local.talos_inline_manifests))),
-    nonsensitive(sha1(jsonencode(local.talos_manifests))),
+    nonsensitive(sha1(jsonencode(local.talos_remote_manifests))),
   ]
 
   provisioner "local-exec" {

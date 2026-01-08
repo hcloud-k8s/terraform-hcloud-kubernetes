@@ -1,6 +1,7 @@
 locals {
   # Generate Kubernetes RBAC manifests
-  rbac_manifests = concat(
+  kube_rbac_manifests = concat(
+
     # Kubernetes namespaced roles
     [for role in var.rbac_roles : yamlencode({
       apiVersion = "rbac.authorization.k8s.io/v1"
@@ -15,6 +16,7 @@ locals {
         verbs     = rule.verbs
       }]
     })],
+
     # Kubernetes cluster roles 
     [for role in var.rbac_cluster_roles : yamlencode({
       apiVersion = "rbac.authorization.k8s.io/v1"
@@ -30,9 +32,10 @@ locals {
     })]
   )
 
-  rbac_manifest = length(local.rbac_manifests) > 0 ? {
+  # Final manifest
+  kube_rbac_manifest = length(local.kube_rbac_manifests) > 0 ? {
     name     = "kube-rbac"
-    contents = join("\n---\n", local.rbac_manifests)
+    contents = trimspace(join("\n---\n", local.kube_rbac_manifests))
   } : null
 }
 
