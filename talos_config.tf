@@ -125,8 +125,8 @@ locals {
   talos_kubelet_extra_mounts = concat(
     var.longhorn_enabled ? [
       {
-        source      = "/var/lib/longhorn"
-        destination = "/var/lib/longhorn"
+        source      = var.longhorn_data_path
+        destination = var.longhorn_data_path
         type        = "bind"
         options     = ["bind", "rshared", "rw"]
       }
@@ -322,6 +322,16 @@ locals {
   worker_talos_config_patch = {
     for node in hcloud_server.worker : node.name => {
       machine = {
+        disks = contains(keys(local.worker_nodes_with_volumes), node.name) ? [
+          {
+            device = "/dev/sdb"
+            partitions = [
+              {
+                mountpoint = var.longhorn_data_path
+              }
+            ]
+          }
+        ] : null
         install = {
           image           = local.talos_installer_image_url
           extraKernelArgs = var.talos_extra_kernel_args

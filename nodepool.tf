@@ -60,8 +60,9 @@ locals {
         "^(?P<key>[^=:]+)=?(?P<value>[^=:]*?):(?P<effect>.+)$",
         taint
       )],
-      count           = np.count,
-      placement_group = np.placement_group
+      count                = np.count,
+      placement_group      = np.placement_group,
+      longhorn_volume_size = np.longhorn_volume_size
     }
   ]
 

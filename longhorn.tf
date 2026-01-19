@@ -44,6 +44,7 @@ data "helm_template" "longhorn" {
         allowCollectingLonghornUsageMetrics = false
         kubernetesClusterAutoscalerEnabled  = local.cluster_autoscaler_enabled
         upgradeChecker                      = false
+        defaultDataPath                     = var.longhorn_data_path
       }
       networkPolicies = {
         enabled = true
@@ -53,7 +54,8 @@ data "helm_template" "longhorn" {
         defaultClass = var.longhorn_default_storage_class
       }
     }),
-    yamlencode(var.longhorn_helm_values)
+    yamlencode(var.longhorn_helm_values),
+    file("${path.module}/longhorn-values.yaml")
   ]
 }
 

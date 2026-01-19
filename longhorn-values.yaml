@@ -1,0 +1,46 @@
+# Longhorn configuration for HA storage
+defaultSettings:
+  # Number of replicas for volumes (3 recommended for HA)
+  defaultReplicaCount: 2  # Using 2 since you have 2 worker nodes
+  
+  # Automatically create snapshots for backup
+  backupTarget: ""  # Configure S3/NFS backup target later if needed
+  
+  # Storage over-provisioning percentage
+  storageOverProvisioningPercentage: 200
+  
+  # Storage minimal available percentage
+  storageMinimalAvailablePercentage: 25
+
+# Create default storage class
+persistence:
+  defaultClass: false  # Don't replace hcloud as default yet
+  defaultClassReplicaCount: 2
+
+# Longhorn UI - can be exposed via Cloudflare tunnel
+ingress:
+  enabled: false  # We'll use Cloudflare tunnel if needed
+
+# Resource limits for Longhorn components
+longhornManager:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+longhornDriver:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Enable metrics for Prometheus integration
+metrics:
+  serviceMonitor:
+    enabled: true

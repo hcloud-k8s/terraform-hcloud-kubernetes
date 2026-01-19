@@ -380,7 +380,8 @@ variable "worker_nodepools" {
     rdns            = optional(string)
     rdns_ipv4       = optional(string)
     rdns_ipv6       = optional(string)
-    placement_group = optional(bool, true)
+    placement_group      = optional(bool, true)
+    longhorn_volume_size = optional(number, 0)
   }))
   default     = []
   description = "Defines configuration settings for Worker node pools within the cluster."
@@ -1063,6 +1064,24 @@ variable "rbac_cluster_roles" {
   }
 }
 
+variable "rbac_cluster_role_bindings" {
+  description = "List of custom Kubernetes cluster role bindings to create"
+  type = list(object({
+    name         = string
+    cluster_role = string
+    users        = optional(list(string), [])
+    groups       = optional(list(string), [])
+  }))
+  default = []
+
+  validation {
+    condition = length(var.rbac_cluster_role_bindings) == length(distinct([
+      for binding in var.rbac_cluster_role_bindings : binding.name
+    ]))
+    error_message = "RBAC cluster role binding names must be unique."
+  }
+}
+
 # Hetzner Cloud
 variable "hcloud_token" {
   type        = string
@@ -1342,6 +1361,12 @@ variable "longhorn_default_storage_class" {
   type        = bool
   default     = false
   description = "Set Longhorn as the default storage class."
+}
+
+variable "longhorn_data_path" {
+  type        = string
+  default     = "/var/mnt/longhorn"
+  description = "Mount path for dedicated Longhorn storage volumes. Used when workers have longhorn_volume_size > 0."
 }
 
 
