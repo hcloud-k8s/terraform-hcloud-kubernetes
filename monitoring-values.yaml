@@ -1,0 +1,72 @@
+grafana:
+  enabled: true
+  adminPassword: "JnrKoKo2012@"  # Change this to a secure password
+  
+  # Persistent storage for Grafana
+  persistence:
+    enabled: true
+    storageClassName: longhorn
+    size: 10Gi
+  
+  # Service configuration - ClusterIP for internal access via Cloudflare tunnel
+  service:
+    type: ClusterIP
+    port: 80
+  
+  # Grafana configuration
+  grafana.ini:
+    server:
+      domain: monitor.toyintest.org
+      root_url: https://monitor.toyintest.org
+
+# Prometheus configuration
+prometheus:
+  enabled: true
+  prometheusSpec:
+    # Persistent storage for Prometheus
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 50Gi
+    
+    # Retention period
+    retention: 30d
+    
+    # Resource limits
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+
+# AlertManager configuration
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    # Persistent storage for AlertManager
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+# Node exporter - collects node-level metrics
+nodeExporter:
+  enabled: true
+
+# Kube-state-metrics - collects Kubernetes object metrics
+kubeStateMetrics:
+  enabled: true
+
+# Prometheus Operator
+prometheusOperator:
+  enabled: true
