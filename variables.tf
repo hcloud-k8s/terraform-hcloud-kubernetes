@@ -1070,6 +1070,23 @@ variable "hcloud_token" {
   sensitive   = true
 }
 
+variable "dns_zone_create" {
+  type        = bool
+  default     = false
+  description = "Creates a Hetzner DNS zone when set to true."
+}
+
+variable "dns_zone_name" {
+  type        = string
+  default     = null
+  description = "Name of the Hetzner DNS zone to create (e.g. example.com)."
+
+  validation {
+    condition     = (!var.dns_zone_create && var.dns_zone_name == null) || (var.dns_zone_name != null && can(regex("^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)*(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)$", var.dns_zone_name)))
+    error_message = "The DNS zone name must be a valid domain."
+  }
+}
+
 variable "hcloud_network" {
   type = object({
     id = number
@@ -1587,6 +1604,35 @@ variable "metrics_server_replicas" {
   type        = number
   default     = null
   description = "Specifies the number of replicas for the Metrics Server. Depending on the node pool size, a default of 1 or 2 is used if not explicitly set."
+}
+
+
+# External DNS
+variable "external_dns" {
+  type = object({
+    enabled        = optional(bool, false)
+    namespace      = optional(string, "external-dns")
+    sources        = optional(list(string), ["service", "ingress"])
+    domain_filters = optional(list(string), [])
+    txt_owner_id   = optional(string, null)
+    txt_prefix     = optional(string, null)
+    policy         = optional(string, "upsert-only")
+    registry       = optional(string, "txt")
+    interval       = optional(string, "1m")
+    helm = optional(object({
+      repository = optional(string, "https://kubernetes-sigs.github.io/external-dns/")
+      chart      = optional(string, "external-dns")
+      version    = optional(string, "1.20.0")
+      values     = optional(any, {})
+    }), {})
+    webhook = optional(object({
+      image_repository = optional(string, "ghcr.io/mconfalonieri/external-dns-hetzner-webhook")
+      image_tag        = optional(string, "v0.9.0")
+      use_cloud_api    = optional(bool, true)
+    }), {})
+  })
+  default     = {}
+  description = "ExternalDNS configuration, including Helm, webhook, and DNS settings."
 }
 
 
