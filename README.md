@@ -1005,6 +1005,101 @@ talos_siderolabs_discovery_service_enabled = true
 For more details, refer to the [official Talos discovery guide](https://www.talos.dev/latest/talos-guides/discovery/).
 </details>
 
+<!-- Talos OOM Handler -->
+<details>
+<summary><b>Talos OOM Handler Configuration</b></summary>
+
+Talos 1.12+ includes a userspace Out-of-Memory (OOM) handler that is always enabled by default with built-in configuration. This handler provides early detection of memory pressure and helps prevent machine lock-up due to out-of-memory conditions, which is especially important for single-node clusters or when scheduling pods on control plane nodes.
+
+While the Linux kernel's OOM killer only activates when completely out of memory (at which point the system may be unresponsive), the Talos userspace OOM handler proactively monitors memory pressure and can take action earlier to maintain system stability.
+
+#### Default Behavior
+
+The OOM handler uses [Pressure Stall Information (PSI)](https://docs.kernel.org/accounting/psi.html) metrics to detect memory pressure and Common Expression Language (CEL) expressions to determine when and what to kill:
+
+- **Trigger**: Activates when full memory pressure (10s average) exceeds 12% AND is increasing AND at least 500ms have passed since the last OOM event
+- **Ranking**: Prioritizes killing pods without memory limits first, specifically BestEffort pods (highest priority), then Burstable pods, while protecting Guaranteed pods and system services
+
+#### Customization
+
+This module allows you to customize the OOM handler behavior if the defaults don't suit your workload requirements:
+
+```hcl
+# Custom OOM configuration enabled
+talos_custom_oom_enabled                    = true
+
+# Custom trigger - this expression defines when to trigger OOM action.
+talos_custom_oom_trigger_expression         = "memory_full_avg10 > 12.0 && d_memory_full_avg10 > 0.0 && time_since_trigger > duration(\"500ms\")"
+
+# Custom ranking - this expression defines how to rank cgroups for OOM handler.
+talos_custom_oom_cgroup_ranking_expression  = "memory_max.hasValue() ? 0.0 : {Besteffort: 1.0, Burstable: 0.5, Guaranteed: 0.0, Podruntime: 0.0, System: 0.0}[class] * double(memory_current.orValue(0u))"
+
+# Custom sample interval - how often should the trigger expression be evaluated.
+talos_custom_oom_sample_interval            = "100ms"
+```
+
+You can override any combination of these settings. The module validates that at least one custom field is provided when `talos_custom_oom_enabled = true`.
+
+For more details, refer to the [Talos OOM Handler documentation](https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/oom) and [OOMConfig reference](https://docs.siderolabs.com/talos/v1.12/reference/configuration/runtime/oomconfig).
+</details>
+
+<!-- Talos Directory Volumes -->
+<details>
+<summary><b>Talos Directory Volumes</b></summary>
+
+Talos 1.12+ supports creating using directories on the EPHEMERAL partition as storage volumes. These volumes are automatically mounted at `/var/mnt/<name>` and provide persistent storage across pod restarts without requiring additional block devices or partitions.
+
+This feature is particularly useful for workloads that need host directories, such as:
+
+- **Local Path Provisioner**: Kubernetes dynamic volume provisioner using local storage
+- **Shared cache directories**: Persistent cache storage for applications
+- **Build artifacts**: CI/CD pipelines requiring shared build output
+- **Logging/metrics collection**: Centralized log or metric storage from workloads
+
+#### Configuration
+
+Directory volumes can be configured separately for each node type (control plane, workers, autoscaler):
+
+```hcl
+# Control plane directory volumes
+control_plane_directory_volumes = ["local-storage", "cache-data"]
+
+# Worker directory volumes
+worker_directory_volumes = ["local-storage", "build-cache"]
+
+# Cluster autoscaler directory volumes (optional)
+cluster_autoscaler_directory_volumes = ["temp-storage"]
+```
+
+#### Example: Local Path Provisioner
+
+Deploy the Kubernetes Local Path Provisioner to use directory volumes for dynamic PV provisioning:
+
+```hcl
+# Define directory volumes for worker nodes
+worker_directory_volumes = ["local-storage"]
+```
+
+The directory `/var/mnt/local-storage` will be created on all worker nodes and can be used by the Local Path Provisioner for dynamic volume provisioning.
+
+#### Important Considerations
+
+**Data Persistence:**
+
+- ⚠️ **Data loss on node failure**: If a node fails or is replaced, all data in directory volumes on that node is permanently lost
+- ⚠️ **Ephemeral partition wipe**: Recreating or resetting a node wipes the EPHEMERAL partition, destroying all directory volume data
+- For critical data requiring high availability, use Hetzner Cloud Volumes (via Hcloud CSI) or Longhorn distributed storage instead
+- Directory volumes inherit encryption from the EPHEMERAL partition
+
+**Storage Limitations:**
+
+- **Shared capacity**: All directory volumes share the EPHEMERAL partition's total capacity
+- **No quotas**: Cannot enforce per-directory storage limits
+- **No filesystem isolation**: Directory-type volumes don't provide filesystem-level isolation
+
+For more details, refer to the [Talos UserVolumeConfig documentation](https://docs.siderolabs.com/talos/v1.12/reference/configuration/runtime/uservolumeconfig).
+</details>
+
 <!-- Kubernetes RBAC -->
 <details>
 <summary><b>Kubernetes RBAC</b></summary>
