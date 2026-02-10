@@ -364,6 +364,24 @@ variable "control_plane_config_patches" {
   description = "List of configuration patches applied to the Control Plane nodes."
 }
 
+variable "control_plane_directory_volumes" {
+  type        = list(string)
+  default     = []
+  description = "List of directory volumes to create on Control Plane nodes. Each volume is mounted at /var/mnt/<name> on the EPHEMERAL partition."
+
+  validation {
+    condition = alltrue([
+      for name in var.control_plane_directory_volumes : can(regex("^[a-zA-Z0-9-]{1,34}$", name))
+    ])
+    error_message = "Directory volume names must be 1-34 characters long and contain only alphanumeric characters and hyphens."
+  }
+
+  validation {
+    condition     = length(var.control_plane_directory_volumes) == length(distinct(var.control_plane_directory_volumes))
+    error_message = "Directory volume names must be unique within Control Plane nodes."
+  }
+}
+
 
 # Worker
 variable "worker_nodepools" {
@@ -440,6 +458,24 @@ variable "worker_config_patches" {
   type        = any
   default     = []
   description = "List of configuration patches applied to the Worker nodes."
+}
+
+variable "worker_directory_volumes" {
+  type        = list(string)
+  default     = []
+  description = "List of directory volumes to create on Worker nodes. Each volume is mounted at /var/mnt/<name> on the EPHEMERAL partition."
+
+  validation {
+    condition = alltrue([
+      for name in var.worker_directory_volumes : can(regex("^[a-zA-Z0-9-]{1,34}$", name))
+    ])
+    error_message = "Directory volume names must be 1-34 characters long and contain only alphanumeric characters and hyphens."
+  }
+
+  validation {
+    condition     = length(var.worker_directory_volumes) == length(distinct(var.worker_directory_volumes))
+    error_message = "Directory volume names must be unique within Worker nodes."
+  }
 }
 
 
@@ -532,6 +568,24 @@ variable "cluster_autoscaler_config_patches" {
   description = "List of configuration patches applied to the Cluster Autoscaler nodes."
 }
 
+variable "cluster_autoscaler_directory_volumes" {
+  type        = list(string)
+  default     = []
+  description = "List of directory volumes to create on Cluster Autoscaler nodes. Each volume is mounted at /var/mnt/<name> on the EPHEMERAL partition."
+
+  validation {
+    condition = alltrue([
+      for name in var.cluster_autoscaler_directory_volumes : can(regex("^[a-zA-Z0-9-]{1,34}$", name))
+    ])
+    error_message = "Directory volume names must be 1-34 characters long and contain only alphanumeric characters and hyphens."
+  }
+
+  validation {
+    condition     = length(var.cluster_autoscaler_directory_volumes) == length(distinct(var.cluster_autoscaler_directory_volumes))
+    error_message = "Directory volume names must be unique within Cluster Autoscaler nodes."
+  }
+}
+
 variable "cluster_autoscaler_discovery_enabled" {
   type        = bool
   default     = false
@@ -576,7 +630,7 @@ variable "packer_arm64_builder" {
 # Talos
 variable "talos_version" {
   type        = string
-  default     = "v1.11.6" # https://github.com/siderolabs/talos
+  default     = "v1.12.1" # https://github.com/siderolabs/talos
   description = "Specifies the version of Talos to be used in generated machine configurations."
 }
 
@@ -727,8 +781,11 @@ variable "talos_extra_routes" {
   description = "Specifies CIDR blocks to be added as extra routes for the internal network interface, using the Hetzner router (first usable IP in the network) as the gateway."
 
   validation {
-    condition     = alltrue([for cidr in var.talos_extra_routes : can(regex("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}$", cidr))])
-    error_message = "All entries in extra_routes must be valid CIDR notations."
+    condition = (
+      alltrue([for cidr in var.talos_extra_routes : can(regex("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}$", cidr))]) &&
+      (contains(var.talos_extra_routes, "0.0.0.0/0") ? length(var.talos_extra_routes) == 1 : true)
+    )
+    error_message = "All entries must be valid CIDR notations. If '0.0.0.0/0' is present, it must be the only entry in the list."
   }
 }
 
@@ -767,24 +824,178 @@ variable "talos_time_servers" {
 }
 
 variable "talos_registries" {
-  type        = any
+  type = map(object({
+    # RegistryMirrorConfig
+    endpoints = optional(list(object({
+      url          = string
+      overridePath = optional(bool, false)
+    })))
+    skipFallback = optional(bool, false)
+
+    # RegistryAuthConfig
+    username      = optional(string)
+    password      = optional(string)
+    auth          = optional(string)
+    identityToken = optional(string)
+
+    # RegistryTLSConfig
+    ca = optional(string)
+    clientIdentity = optional(object({
+      cert = string
+      key  = string
+    }))
+    insecureSkipVerify = optional(bool, false)
+  }))
   default     = null
   description = <<-EOF
-    Specifies a list of registry mirrors to be used for container image retrieval. This configuration helps in specifying alternate sources or local mirrors for image registries, enhancing reliability and speed of image downloads.
-    Example configuration:
+    Registry configuration for mirrors, authentication, and TLS. Map keys are registry names (e.g., 'docker.io', 'my-registry.local:5000').
+
+    Each registry can have:
+    - Mirror configuration (endpoints, skipFallback)
+    - Authentication (username/password, auth token, or identity token)
+    - TLS settings (CA certificate, client certificate, or skip verification)
+
+    Example:
     ```
-    registries = {
-      mirrors = {
-        "docker.io" = {
-          endpoints = [
-            "http://localhost:5000",
-            "https://docker.io"
-          ]
-        }
+    talos_registries = {
+      "docker.io" = {
+        endpoints = [
+          { url = "https://my-mirror.local:5000" },
+          { url = "https://docker.io" }
+        ]
+      }
+
+      "my-private-registry.local:5000" = {
+        username = "myuser"
+        password = "mypass"
+        ca       = file("ca.crt")
+      }
+
+      "insecure-registry.local:5000" = {
+        insecureSkipVerify = true
       }
     }
     ```
   EOF
+
+  validation {
+    condition = var.talos_registries == null ? true : alltrue([
+      for registry in keys(var.talos_registries) :
+      can(regex("^[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]+)?$", registry))
+    ])
+    error_message = "Registry names must be valid hostnames (optionally with port), e.g., 'docker.io' or 'my-registry.local:5000'."
+  }
+
+  validation {
+    condition = var.talos_registries == null ? true : alltrue([
+      for registry, config in var.talos_registries :
+      # Username requires password and vice versa
+      (config.username != null) == (config.password != null)
+    ])
+    error_message = "When using username/password authentication, both username and password must be provided."
+  }
+
+  validation {
+    condition = var.talos_registries == null ? true : alltrue([
+      for registry, config in var.talos_registries :
+      # Don't mix auth methods - only one should be used
+      length(compact([
+        config.username != null ? "basic" : null,
+        config.auth != null ? "auth" : null,
+        config.identityToken != null ? "token" : null
+      ])) <= 1
+    ])
+    error_message = "Only one authentication method (username/password, auth, or identityToken) should be used per registry."
+  }
+
+  validation {
+    condition = var.talos_registries == null ? true : alltrue([
+      for registry, config in var.talos_registries :
+      # If CA is provided, it must have valid PEM certificate(s) with matching BEGIN/END pairs
+      config.ca == null ? true : (
+        can(regex("(?s)-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", config.ca)) &&
+        length(regexall("-----BEGIN CERTIFICATE-----", config.ca)) > 0 &&
+        length(regexall("-----BEGIN CERTIFICATE-----", config.ca)) == length(regexall("-----END CERTIFICATE-----", config.ca))
+      )
+    ])
+    error_message = "Registry CA certificates must be valid PEM-encoded certificates with properly ordered '-----BEGIN CERTIFICATE-----' and '-----END CERTIFICATE-----' markers."
+  }
+
+  validation {
+    condition = var.talos_registries == null ? true : alltrue([
+      for registry, config in var.talos_registries :
+      # If CA is provided, it cannot be empty/whitespace-only
+      config.ca == null ? true : length(trimspace(config.ca)) > 0
+    ])
+    error_message = "Registry CA certificates cannot be empty or whitespace-only."
+  }
+
+  validation {
+    condition = var.talos_registries == null ? true : alltrue([
+      for registry, config in var.talos_registries :
+      # If clientIdentity is provided, cert and key must have valid PEM with matching BEGIN/END pairs
+      config.clientIdentity == null ? true : (
+        can(regex("(?s)-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", config.clientIdentity.cert)) &&
+        length(regexall("-----BEGIN CERTIFICATE-----", config.clientIdentity.cert)) > 0 &&
+        length(regexall("-----BEGIN CERTIFICATE-----", config.clientIdentity.cert)) == length(regexall("-----END CERTIFICATE-----", config.clientIdentity.cert)) &&
+        can(regex("(?s)-----BEGIN.*PRIVATE KEY-----.*?-----END.*PRIVATE KEY-----", config.clientIdentity.key)) &&
+        length(regexall("-----BEGIN.*PRIVATE KEY-----", config.clientIdentity.key)) > 0 &&
+        length(regexall("-----BEGIN.*PRIVATE KEY-----", config.clientIdentity.key)) == length(regexall("-----END.*PRIVATE KEY-----", config.clientIdentity.key))
+      )
+    ])
+    error_message = "Registry client identity certificates must be valid PEM-encoded with properly ordered BEGIN/END markers. Certificate must have matching '-----BEGIN CERTIFICATE-----' and '-----END CERTIFICATE-----' pairs. Private key must have matching '-----BEGIN [type] PRIVATE KEY-----' and '-----END [type] PRIVATE KEY-----' pairs."
+  }
+}
+
+variable "talos_trusted_roots" {
+  type        = map(string)
+  default     = null
+  description = <<-EOF
+    Additional trusted CA certificates. Map keys are config names, values are PEM-encoded certificates.
+
+    Multiple certificates can be combined in a single value, separated by newlines.
+
+    Example:
+    ```
+    talos_trusted_roots = {
+      "my-enterprise-ca" = file("enterprise-ca.crt")
+      "internal-ca"      = <<-EOT
+        -----BEGIN CERTIFICATE-----
+        MIIDXTCCAkWgAwIBAgIJAKZ...
+        -----END CERTIFICATE-----
+        -----BEGIN CERTIFICATE-----
+        MIIDYTCCAkmgAwIBAgIJALN...
+        -----END CERTIFICATE-----
+      EOT
+    }
+    ```
+  EOF
+
+  validation {
+    condition = var.talos_trusted_roots == null ? true : alltrue([
+      for name in keys(var.talos_trusted_roots) :
+      can(regex("^[a-zA-Z0-9-]+$", name))
+    ])
+    error_message = "Trusted root config names must contain only alphanumeric characters and hyphens."
+  }
+
+  validation {
+    condition = var.talos_trusted_roots == null ? true : alltrue([
+      for name, certs in var.talos_trusted_roots :
+      length(trimspace(certs)) > 0
+    ])
+    error_message = "Trusted root certificates cannot be empty."
+  }
+
+  validation {
+    condition = var.talos_trusted_roots == null ? true : alltrue([
+      for name, certs in var.talos_trusted_roots :
+      can(regex("(?s)-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", certs)) &&
+      length(regexall("-----BEGIN CERTIFICATE-----", certs)) > 0 &&
+      length(regexall("-----BEGIN CERTIFICATE-----", certs)) == length(regexall("-----END CERTIFICATE-----", certs))
+    ])
+    error_message = "Trusted root certificates must be valid PEM-encoded certificates with properly ordered '-----BEGIN CERTIFICATE-----' and '-----END CERTIFICATE-----' markers."
+  }
 }
 
 variable "talos_logging_destinations" {
@@ -795,6 +1006,39 @@ variable "talos_logging_destinations" {
     extraTags = optional(map(string), {})
   }))
   default = []
+}
+
+variable "talos_custom_oom_enabled" {
+  type        = bool
+  default     = false
+  description = "Enables customization of the Out of Memory (OOM) handler configuration. The OOM handler is always enabled by default in Talos 1.12+ with built-in defaults. Set this to true to override the default trigger expression, ranking formula, or sample interval."
+
+  validation {
+    condition = !var.talos_custom_oom_enabled || (
+      var.talos_custom_oom_trigger_expression != "" ||
+      var.talos_custom_oom_cgroup_ranking_expression != "" ||
+      var.talos_custom_oom_sample_interval != ""
+    )
+    error_message = "When talos_custom_oom_enabled is true, at least one of talos_custom_oom_trigger_expression, talos_custom_oom_cgroup_ranking_expression, or talos_custom_oom_sample_interval must be provided."
+  }
+}
+
+variable "talos_custom_oom_trigger_expression" {
+  type        = string
+  default     = ""
+  description = "CEL expression that defines when to trigger OOM action. Must evaluate to boolean. If empty, uses Talos default."
+}
+
+variable "talos_custom_oom_cgroup_ranking_expression" {
+  type        = string
+  default     = ""
+  description = "CEL expression that ranks cgroups for OOM eviction. Highest score gets killed first. Must evaluate to double. If empty, uses Talos default."
+}
+
+variable "talos_custom_oom_sample_interval" {
+  type        = string
+  default     = ""
+  description = "How often to evaluate the OOM trigger expression. If empty, uses Talos default. Adjusting this tunes OOM handler reactivity."
 }
 
 variable "talos_extra_inline_manifests" {
