@@ -9,6 +9,12 @@ locals {
     "oidc-groups-prefix"  = var.oidc_groups_prefix
   } : {}
 
+  # Talos configuration documents
+  talos_configuration_manifests = concat(
+    # VolumeConfig documents - system disk encryption
+    local.talos_manifest_volumeconfigs != "" ? [local.talos_manifest_volumeconfigs] : [],
+  )
+
   # Kubernetes Manifests for Talos
   talos_inline_manifests = concat(
     [local.hcloud_secret_manifest],
@@ -95,30 +101,6 @@ locals {
       }
     ] : [],
     var.talos_extra_host_entries
-  )
-
-  # Disk Encryption Configuration
-  talos_system_disk_encryption = merge(
-    var.talos_state_partition_encryption_enabled ? {
-      state = {
-        provider = "luks2"
-        options  = ["no_read_workqueue", "no_write_workqueue"]
-        keys = [{
-          nodeID = {}
-          slot   = 0
-        }]
-      }
-    } : {},
-    var.talos_ephemeral_partition_encryption_enabled ? {
-      ephemeral = {
-        provider = "luks2"
-        options  = ["no_read_workqueue", "no_write_workqueue"]
-        keys = [{
-          nodeID = {}
-          slot   = 0
-        }]
-      }
-    } : {}
   )
 
   # Kubelet extra mounts
@@ -245,8 +227,7 @@ locals {
           },
           var.talos_sysctls_extra_args
         )
-        registries           = var.talos_registries
-        systemDiskEncryption = local.talos_system_disk_encryption
+        registries = var.talos_registries
         features = {
           kubernetesTalosAPIAccess = {
             enabled = true,
@@ -395,8 +376,7 @@ locals {
           },
           var.talos_sysctls_extra_args
         )
-        registries           = var.talos_registries
-        systemDiskEncryption = local.talos_system_disk_encryption
+        registries = var.talos_registries
         features = {
           hostDNS = local.talos_host_dns
         }
@@ -495,8 +475,7 @@ locals {
           },
           var.talos_sysctls_extra_args
         )
-        registries           = var.talos_registries
-        systemDiskEncryption = local.talos_system_disk_encryption
+        registries = var.talos_registries
         features = {
           hostDNS = local.talos_host_dns
         }
@@ -536,8 +515,12 @@ data "talos_machine_configuration" "control_plane" {
   examples           = false
 
   config_patches = concat(
+    # Main v1alpha1 machine configuration
     [yamlencode(local.control_plane_talos_config_patch[each.key])],
-    [for patch in var.control_plane_config_patches : yamlencode(patch)]
+    # User-provided configuration patches
+    [for patch in var.control_plane_config_patches : yamlencode(patch)],
+    # Common talos configuration manifests
+    local.talos_configuration_manifests
   )
 }
 
@@ -554,8 +537,12 @@ data "talos_machine_configuration" "worker" {
   examples           = false
 
   config_patches = concat(
+    # Main v1alpha1 machine configuration
     [yamlencode(local.worker_talos_config_patch[each.key])],
-    [for patch in var.worker_config_patches : yamlencode(patch)]
+    # User-provided configuration patches
+    [for patch in var.worker_config_patches : yamlencode(patch)],
+    # Common talos configuration manifests
+    local.talos_configuration_manifests
   )
 }
 
@@ -572,7 +559,11 @@ data "talos_machine_configuration" "cluster_autoscaler" {
   examples           = false
 
   config_patches = concat(
+    # Main v1alpha1 machine configuration
     [yamlencode(local.autoscaler_nodepool_talos_config_patch[each.key])],
-    [for patch in var.cluster_autoscaler_config_patches : yamlencode(patch)]
+    # User-provided configuration patches
+    [for patch in var.cluster_autoscaler_config_patches : yamlencode(patch)],
+    # Common talos configuration manifests
+    local.talos_configuration_manifests
   )
 }
