@@ -89,6 +89,21 @@ talos_upgrade_k8s() {
       run = run " --endpoint "    sq "${kube_api_url}" sq
       run = run " --to "          sq "${kubernetes_version}" sq
       run = run " --with-docs=false --with-examples=false"
+%{ if kubernetes_apiserver_image != null ~}
+      run = run " --apiserver-image " sq "${kubernetes_apiserver_image}" sq
+%{ endif ~}
+%{ if kubernetes_controller_manager_image != null ~}
+      run = run " --controller-manager-image " sq "${kubernetes_controller_manager_image}" sq
+%{ endif ~}
+%{ if kubernetes_scheduler_image != null ~}
+      run = run " --scheduler-image " sq "${kubernetes_scheduler_image}" sq
+%{ endif ~}
+%{ if kubernetes_proxy_image != null ~}
+      run = run " --proxy-image " sq "${kubernetes_proxy_image}" sq
+%{ endif ~}
+%{ if kubernetes_kubelet_image != null ~}
+      run = run " --kubelet-image " sq "${kubernetes_kubelet_image}" sq
+%{ endif ~}
       run = run " ; printf " sq "\\037RC=%d\\n" sq " $?"
 
       in_secret  = 0
