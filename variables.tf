@@ -972,11 +972,11 @@ variable "kubernetes_kubelet_image" {
 variable "kubernetes_etcd_image" {
   type        = string
   default     = null
-  description = "Specifies a custom container image for etcd including the tag (e.g., 'my-registry.io/etcd:v3.6.8')."
+  description = "Specifies a custom container image for etcd including the tag and/or digest (e.g., 'my-registry.io/etcd:v3.6.8', 'my-registry.io/etcd:v3.6.8@sha256:...', or 'my-registry.io/etcd@sha256:...'). This change will only take effect after a manual reboot of your cluster nodes!"
 
   validation {
-    condition     = var.kubernetes_etcd_image == null || can(regex("^[a-z0-9]([a-z0-9._-]*[a-z0-9])?(:[0-9]+)?(/[a-z0-9]([a-z0-9._-]*[a-z0-9])?)+:[a-zA-Z0-9][a-zA-Z0-9._-]*$", var.kubernetes_etcd_image))
-    error_message = "The image must be a valid container image reference with a tag (e.g., 'my-registry.io/etcd:v3.6.8')."
+    condition     = var.kubernetes_etcd_image == null || can(regex("^[a-z0-9]([a-z0-9._-]*[a-z0-9])?(:[0-9]+)?(/[a-z0-9]([a-z0-9._-]*[a-z0-9])?)+((:[a-zA-Z0-9][a-zA-Z0-9._-]*)(@[a-z0-9]+:[a-f0-9]+)?|@[a-z0-9]+:[a-f0-9]+)$", var.kubernetes_etcd_image))
+    error_message = "The image must be a valid container image reference with a tag and/or digest (e.g., 'my-registry.io/etcd:v3.6.8' or 'my-registry.io/etcd:v3.6.8@sha256:...')."
   }
 }
 
