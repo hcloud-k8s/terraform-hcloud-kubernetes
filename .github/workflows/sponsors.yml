@@ -17,7 +17,7 @@ jobs:
         with:
           token: ${{ secrets.PAT }}
           file: 'README.md'
-          minimum: 1
+          minimum: 0
           marker: 'gh-sponsors'
           organization: true
           template: '<a href="https://github.com/{{{ login }}}"><img src="{{{ avatarUrl }}}" width="80px" alt="User avatar: {{{ login }}}" /></a>&nbsp;&nbsp;'
@@ -31,7 +31,6 @@ jobs:
           marker: 'gh-highlighted-sponsors'
           organization: true
           template: '<a href="https://github.com/{{{ login }}}"><img src="{{{ avatarUrl }}}" width="120px" alt="User avatar: {{{ login }}}" /></a>&nbsp;&nbsp;'
-
 
       - name: Generate Liberapay Patrons 💸
         run: |
