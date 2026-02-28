@@ -1258,7 +1258,7 @@ If you'd like to support this project, please consider leaving a ⭐ on GitHub!<
 > If you don’t have a Hetzner account yet, you can use this [Hetzner Cloud Referral Link](https://hetzner.cloud/?ref=GMylKeDmqtsD) to claim a €20 credit and support this project at the same time.
 
 ### 💖 Special Thanks to All Sponsors! 💖
-<!-- patrons --><a href="https://liberapay.com/devXY"><img src="https://seccdn.libravatar.org/avatar/b6dddcd2f3a8097b0f1e148d14ebd1c4?s=160&d=404&=1" width="80" alt="devXY" /></a>&nbsp;&nbsp;<!-- patrons --><!-- sponsors --><a href="https://github.com/jonakoudijs"><img src="https:&#x2F;&#x2F;github.com&#x2F;jonakoudijs.png" width="80px" alt="User avatar: jonakoudijs" /></a>&nbsp;&nbsp;<a href="https://github.com/antonengelhardt"><img src="https:&#x2F;&#x2F;github.com&#x2F;antonengelhardt.png" width="80px" alt="User avatar: antonengelhardt" /></a>&nbsp;&nbsp;<!-- sponsors -->
+<!-- patrons --><a href="https://liberapay.com/devXY"><img src="https://seccdn.libravatar.org/avatar/b6dddcd2f3a8097b0f1e148d14ebd1c4?s=160&d=404&=1" width="80" alt="devXY" /></a>&nbsp;&nbsp;<!-- patrons --><!-- sponsors --><a href="https://github.com/jonakoudijs"><img src="https:&#x2F;&#x2F;github.com&#x2F;jonakoudijs.png" width="80px" alt="User avatar: jonakoudijs" /></a>&nbsp;&nbsp;<a href="https://github.com/antonengelhardt"><img src="https:&#x2F;&#x2F;github.com&#x2F;antonengelhardt.png" width="80px" alt="User avatar: antonengelhardt" /></a>&nbsp;&nbsp;<a href="https://github.com/mammouth-ai"><img src="https:&#x2F;&#x2F;github.com&#x2F;mammouth-ai.png" width="80px" alt="User avatar: mammouth-ai" /></a>&nbsp;&nbsp;<!-- sponsors -->
 
 Your sponsorship supports the ongoing development, improvement, and maintenance of this project 🙏
 <br>
