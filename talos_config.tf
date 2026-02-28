@@ -202,37 +202,42 @@ locals {
           nameservers      = local.talos_nameservers
           extraHostEntries = local.talos_extra_host_entries
         }
-        kubelet = {
-          extraArgs = merge(
-            {
-              "cloud-provider"             = "external"
-              "rotate-server-certificates" = true
-            },
-            var.kubernetes_kubelet_extra_args
-          )
-          extraConfig = merge(
-            {
-              shutdownGracePeriod             = "90s"
-              shutdownGracePeriodCriticalPods = "15s"
-              registerWithTaints              = local.control_plane_nodepools_map[node.labels.nodepool].taints
-              systemReserved = {
-                cpu               = "250m"
-                memory            = "300Mi"
-                ephemeral-storage = "1Gi"
-              }
-              kubeReserved = {
-                cpu               = "250m"
-                memory            = "350Mi"
-                ephemeral-storage = "1Gi"
-              }
-            },
-            var.kubernetes_kubelet_extra_config
-          )
-          extraMounts = local.talos_kubelet_extra_mounts
-          nodeIP = {
-            validSubnets = [local.network_node_ipv4_cidr]
-          }
-        }
+        kubelet = merge(
+          {
+            extraArgs = merge(
+              {
+                "cloud-provider"             = "external"
+                "rotate-server-certificates" = true
+              },
+              var.kubernetes_kubelet_extra_args
+            )
+            extraConfig = merge(
+              {
+                shutdownGracePeriod             = "90s"
+                shutdownGracePeriodCriticalPods = "15s"
+                registerWithTaints              = local.control_plane_nodepools_map[node.labels.nodepool].taints
+                systemReserved = {
+                  cpu               = "250m"
+                  memory            = "300Mi"
+                  ephemeral-storage = "1Gi"
+                }
+                kubeReserved = {
+                  cpu               = "250m"
+                  memory            = "350Mi"
+                  ephemeral-storage = "1Gi"
+                }
+              },
+              var.kubernetes_kubelet_extra_config
+            )
+            extraMounts = local.talos_kubelet_extra_mounts
+            nodeIP = {
+              validSubnets = [local.network_node_ipv4_cidr]
+            }
+          },
+          var.kubernetes_kubelet_image != null ? {
+            image = "${var.kubernetes_kubelet_image}:${var.kubernetes_version}"
+          } : {}
+        )
         kernel = {
           modules = var.talos_kernel_modules
         }
@@ -276,36 +281,61 @@ locals {
         coreDNS = {
           disabled = !var.talos_coredns_enabled
         }
-        proxy = {
-          disabled = var.cilium_kube_proxy_replacement_enabled
-        }
-        apiServer = {
-          admissionControl = var.kube_api_admission_control
-          certSANs         = local.certificate_san,
-          extraArgs = merge(
-            { "enable-aggregator-routing" = true },
-            local.kube_oidc_configuration,
-            var.kube_api_extra_args
-          )
-        }
-        controllerManager = {
-          extraArgs = {
-            "cloud-provider" = "external"
-            "bind-address"   = "0.0.0.0"
-          }
-        }
+        proxy = merge(
+          {
+            disabled = var.cilium_kube_proxy_replacement_enabled
+          },
+          var.kubernetes_proxy_image != null ? {
+            image = "${var.kubernetes_proxy_image}:${var.kubernetes_version}"
+          } : {}
+        )
+        apiServer = merge(
+          {
+            admissionControl = var.kube_api_admission_control
+            certSANs         = local.certificate_san,
+            extraArgs = merge(
+              { "enable-aggregator-routing" = true },
+              local.kube_oidc_configuration,
+              var.kube_api_extra_args
+            )
+          },
+          var.kubernetes_apiserver_image != null ? {
+            image = "${var.kubernetes_apiserver_image}:${var.kubernetes_version}"
+          } : {}
+        )
+        controllerManager = merge(
+          {
+            extraArgs = {
+              "cloud-provider" = "external"
+              "bind-address"   = "0.0.0.0"
+            }
+          },
+          var.kubernetes_controller_manager_image != null ? {
+            image = "${var.kubernetes_controller_manager_image}:${var.kubernetes_version}"
+          } : {}
+        )
         discovery = local.talos_discovery
-        etcd = {
-          advertisedSubnets = [hcloud_network_subnet.control_plane.ip_range]
-          extraArgs = {
-            "listen-metrics-urls" = "http://0.0.0.0:2381"
-          }
-        }
-        scheduler = {
-          extraArgs = {
-            "bind-address" = "0.0.0.0"
-          }
-        }
+        etcd = merge(
+          {
+            advertisedSubnets = [hcloud_network_subnet.control_plane.ip_range]
+            extraArgs = {
+              "listen-metrics-urls" = "http://0.0.0.0:2381"
+            }
+          },
+          var.kubernetes_etcd_image != null ? {
+            image = var.kubernetes_etcd_image
+          } : {}
+        )
+        scheduler = merge(
+          {
+            extraArgs = {
+              "bind-address" = "0.0.0.0"
+            }
+          },
+          var.kubernetes_scheduler_image != null ? {
+            image = "${var.kubernetes_scheduler_image}:${var.kubernetes_version}"
+          } : {}
+        )
         adminKubeconfig = {
           certLifetime = "87600h"
         }
@@ -352,37 +382,42 @@ locals {
           nameservers      = local.talos_nameservers
           extraHostEntries = local.talos_extra_host_entries
         }
-        kubelet = {
-          extraArgs = merge(
-            {
-              "cloud-provider"             = "external",
-              "rotate-server-certificates" = true
-            },
-            var.kubernetes_kubelet_extra_args
-          )
-          extraConfig = merge(
-            {
-              shutdownGracePeriod             = "90s"
-              shutdownGracePeriodCriticalPods = "15s"
-              registerWithTaints              = local.worker_nodepools_map[node.labels.nodepool].taints
-              systemReserved = {
-                cpu               = "100m"
-                memory            = "300Mi"
-                ephemeral-storage = "1Gi"
-              }
-              kubeReserved = {
-                cpu               = "100m"
-                memory            = "350Mi"
-                ephemeral-storage = "1Gi"
-              }
-            },
-            var.kubernetes_kubelet_extra_config
-          )
-          extraMounts = local.talos_kubelet_extra_mounts
-          nodeIP = {
-            validSubnets = [local.network_node_ipv4_cidr]
-          }
-        }
+        kubelet = merge(
+          {
+            extraArgs = merge(
+              {
+                "cloud-provider"             = "external",
+                "rotate-server-certificates" = true
+              },
+              var.kubernetes_kubelet_extra_args
+            )
+            extraConfig = merge(
+              {
+                shutdownGracePeriod             = "90s"
+                shutdownGracePeriodCriticalPods = "15s"
+                registerWithTaints              = local.worker_nodepools_map[node.labels.nodepool].taints
+                systemReserved = {
+                  cpu               = "100m"
+                  memory            = "300Mi"
+                  ephemeral-storage = "1Gi"
+                }
+                kubeReserved = {
+                  cpu               = "100m"
+                  memory            = "350Mi"
+                  ephemeral-storage = "1Gi"
+                }
+              },
+              var.kubernetes_kubelet_extra_config
+            )
+            extraMounts = local.talos_kubelet_extra_mounts
+            nodeIP = {
+              validSubnets = [local.network_node_ipv4_cidr]
+            }
+          },
+          var.kubernetes_kubelet_image != null ? {
+            image = "${var.kubernetes_kubelet_image}:${var.kubernetes_version}"
+          } : {}
+        )
         kernel = {
           modules = var.talos_kernel_modules
         }
@@ -414,9 +449,14 @@ locals {
           serviceSubnets = [local.network_service_ipv4_cidr]
           cni            = { name = "none" }
         }
-        proxy = {
-          disabled = var.cilium_kube_proxy_replacement_enabled
-        }
+        proxy = merge(
+          {
+            disabled = var.cilium_kube_proxy_replacement_enabled
+          },
+          var.kubernetes_proxy_image != null ? {
+            image = "${var.kubernetes_proxy_image}:${var.kubernetes_version}"
+          } : {}
+        )
         discovery = local.talos_discovery
       }
     }
@@ -452,37 +492,42 @@ locals {
           nameservers      = local.talos_nameservers
           extraHostEntries = local.talos_extra_host_entries
         }
-        kubelet = {
-          extraArgs = merge(
-            {
-              "cloud-provider"             = "external"
-              "rotate-server-certificates" = true
-            },
-            var.kubernetes_kubelet_extra_args
-          )
-          extraConfig = merge(
-            {
-              shutdownGracePeriod             = "90s"
-              shutdownGracePeriodCriticalPods = "15s"
-              registerWithTaints              = nodepool.taints
-              systemReserved = {
-                cpu               = "100m"
-                memory            = "300Mi"
-                ephemeral-storage = "1Gi"
-              }
-              kubeReserved = {
-                cpu               = "100m"
-                memory            = "350Mi"
-                ephemeral-storage = "1Gi"
-              }
-            },
-            var.kubernetes_kubelet_extra_config
-          )
-          extraMounts = local.talos_kubelet_extra_mounts
-          nodeIP = {
-            validSubnets = [local.network_node_ipv4_cidr]
-          }
-        }
+        kubelet = merge(
+          {
+            extraArgs = merge(
+              {
+                "cloud-provider"             = "external"
+                "rotate-server-certificates" = true
+              },
+              var.kubernetes_kubelet_extra_args
+            )
+            extraConfig = merge(
+              {
+                shutdownGracePeriod             = "90s"
+                shutdownGracePeriodCriticalPods = "15s"
+                registerWithTaints              = nodepool.taints
+                systemReserved = {
+                  cpu               = "100m"
+                  memory            = "300Mi"
+                  ephemeral-storage = "1Gi"
+                }
+                kubeReserved = {
+                  cpu               = "100m"
+                  memory            = "350Mi"
+                  ephemeral-storage = "1Gi"
+                }
+              },
+              var.kubernetes_kubelet_extra_config
+            )
+            extraMounts = local.talos_kubelet_extra_mounts
+            nodeIP = {
+              validSubnets = [local.network_node_ipv4_cidr]
+            }
+          },
+          var.kubernetes_kubelet_image != null ? {
+            image = "${var.kubernetes_kubelet_image}:${var.kubernetes_version}"
+          } : {}
+        )
         kernel = {
           modules = var.talos_kernel_modules
         }
@@ -514,9 +559,14 @@ locals {
           serviceSubnets = [local.network_service_ipv4_cidr]
           cni            = { name = "none" }
         }
-        proxy = {
-          disabled = var.cilium_kube_proxy_replacement_enabled
-        }
+        proxy = merge(
+          {
+            disabled = var.cilium_kube_proxy_replacement_enabled
+          },
+          var.kubernetes_proxy_image != null ? {
+            image = "${var.kubernetes_proxy_image}:${var.kubernetes_version}"
+          } : {}
+        )
         discovery = local.talos_discovery
       }
     }

@@ -52,18 +52,23 @@ locals {
 
   # Talos Control
   talosctl_commands = templatefile("${path.module}/templates/talosctl_commands.sh.tftpl", {
-    talos_upgrade_debug       = var.talos_upgrade_debug
-    talos_upgrade_force       = var.talos_upgrade_force
-    talos_upgrade_insecure    = var.talos_upgrade_insecure
-    talos_upgrade_stage       = var.talos_upgrade_stage
-    talos_upgrade_reboot_mode = var.talos_upgrade_reboot_mode
-    talos_installer_image_url = local.talos_installer_image_url
-    talosctl_retries          = var.talosctl_retries
-    healthcheck_enabled       = var.cluster_healthcheck_enabled
-    talos_primary_node        = local.talos_primary_node_private_ipv4
-    kube_api_url              = local.kube_api_url_external
-    kubernetes_version        = var.kubernetes_version
-    control_plane_nodes       = local.control_plane_private_ipv4_list
+    talos_upgrade_debug                 = var.talos_upgrade_debug
+    talos_upgrade_force                 = var.talos_upgrade_force
+    talos_upgrade_insecure              = var.talos_upgrade_insecure
+    talos_upgrade_stage                 = var.talos_upgrade_stage
+    talos_upgrade_reboot_mode           = var.talos_upgrade_reboot_mode
+    talos_installer_image_url           = local.talos_installer_image_url
+    talosctl_retries                    = var.talosctl_retries
+    healthcheck_enabled                 = var.cluster_healthcheck_enabled
+    talos_primary_node                  = local.talos_primary_node_private_ipv4
+    kube_api_url                        = local.kube_api_url_external
+    kubernetes_version                  = var.kubernetes_version
+    kubernetes_apiserver_image          = var.kubernetes_apiserver_image
+    kubernetes_controller_manager_image = var.kubernetes_controller_manager_image
+    kubernetes_scheduler_image          = var.kubernetes_scheduler_image
+    kubernetes_proxy_image              = var.kubernetes_proxy_image
+    kubernetes_kubelet_image            = var.kubernetes_kubelet_image
+    control_plane_nodes                 = local.control_plane_private_ipv4_list
     worker_nodes = concat(
       local.worker_private_ipv4_list,
       local.cluster_autoscaler_private_ipv4_list
@@ -194,7 +199,14 @@ resource "terraform_data" "upgrade_cluster_autoscaler" {
 }
 
 resource "terraform_data" "upgrade_kubernetes" {
-  triggers_replace = [var.kubernetes_version]
+  triggers_replace = [
+    var.kubernetes_version,
+    var.kubernetes_apiserver_image,
+    var.kubernetes_controller_manager_image,
+    var.kubernetes_scheduler_image,
+    var.kubernetes_proxy_image,
+    var.kubernetes_kubelet_image,
+  ]
 
   provisioner "local-exec" {
     when  = create
