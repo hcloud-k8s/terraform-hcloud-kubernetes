@@ -1262,7 +1262,7 @@ If you'd like to support this project, please consider leaving a ⭐ on GitHub!<
 <!-- sponsors-highlighted --><!-- sponsors-highlighted -->
 </p>
 <p align="center">
-<!-- sponsors --><!-- sponsors -->
+<!-- sponsors --><a href="https://liberapay.com/devXY"><img src="https://seccdn.libravatar.org/avatar/b6dddcd2f3a8097b0f1e148d14ebd1c4?s=160&amp;d=404&amp;=1" width="80px" alt="devXY" /></a>&nbsp;&nbsp;<!-- sponsors -->
 </p>
 
 Your sponsorship supports the ongoing development, improvement, and maintenance of this project 🙏
