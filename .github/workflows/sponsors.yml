@@ -17,6 +17,7 @@ jobs:
         with:
           token: ${{ secrets.PAT }}
           file: 'README.md'
+          minimum: 1
           maximum: 4999
           marker: 'gh-sponsors'
           organization: true
