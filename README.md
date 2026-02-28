@@ -1259,7 +1259,7 @@ If you'd like to support this project, please consider leaving a ⭐ on GitHub!<
 
 ### 💖 Special Thanks to All Sponsors! 💖
 <p align="center">
-<!-- gh-sponsors-highlighed --><!-- -highlighed -->
+<!-- gh-sponsors-highlighted --><!-- gh-sponsors-highlighted -->
 </p>
 <p align="center">
 <!-- patrons --><a href="https://liberapay.com/devXY"><img src="https://seccdn.libravatar.org/avatar/b6dddcd2f3a8097b0f1e148d14ebd1c4?s=160&d=404&=1" width="80px" alt="devXY" /></a>&nbsp;&nbsp;<!-- patrons --><!-- gh-sponsors --><a href="https://github.com/jonakoudijs"><img src="https:&#x2F;&#x2F;github.com&#x2F;jonakoudijs.png" width="80px" alt="User avatar: jonakoudijs" /></a>&nbsp;&nbsp;<a href="https://github.com/antonengelhardt"><img src="https:&#x2F;&#x2F;github.com&#x2F;antonengelhardt.png" width="80px" alt="User avatar: antonengelhardt" /></a>&nbsp;&nbsp;<!-- gh-sponsors -->
