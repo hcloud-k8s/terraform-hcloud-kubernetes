@@ -27,9 +27,6 @@
   <a href="https://registry.terraform.io/modules/hcloud-k8s/kubernetes/hcloud">
     <img src="https://img.shields.io/terraform/module/dt/hcloud-k8s/kubernetes/hcloud?logo=terraform&label=Terraform" alt="Terraform Registry downloads" />
   </a>
-  <a href="https://github.com/hcloud-k8s/terraform-hcloud-kubernetes/search?l=hcl">
-    <img src="https://img.shields.io/github/languages/top/hcloud-k8s/terraform-hcloud-kubernetes?logo=hashicorp&label=HCL" alt="HCL top language" />
-  </a>
   <a href="https://github.com/hcloud-k8s/terraform-hcloud-kubernetes/issues/">
     <img src="https://img.shields.io/github/issues/hcloud-k8s/terraform-hcloud-kubernetes?logo=github" alt="open issues" />
   </a>
