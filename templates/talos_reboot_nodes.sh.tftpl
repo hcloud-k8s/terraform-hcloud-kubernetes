@@ -1,0 +1,33 @@
+printf '%s\n' "Checking cluster health before starting reboots..."
+talos_wait_for_health
+
+for entry in $NODES_APPLY_MODE; do
+  node="$${entry%%:*}"
+  mode="$${entry##*:}"
+  
+  if ! ${talos_machine_configuration_apply_automatic_reboot_enabled}; then
+    printf '%s\n' "Automatic reboot disabled. Skipping node: $node (apply mode: $mode)"
+    continue
+  fi
+
+  if [ -z "$mode" ] || [ "$mode" = "null" ]; then
+    printf '%s\n' "Skipping reboot for node: $node"
+    continue
+  fi
+
+  if [ "$mode" = "staged" ]; then
+    printf '%s\n' "Rebooting node: $node..."
+    retry=1
+    while true; do
+      if talosctl reboot --talosconfig "$talosconfig" -n "$node"; then
+        break
+      fi
+      talos_retry_or_exit retry
+    done
+    printf '%s\n' "Checking node health..."
+    talos_wait_for_health
+    printf '%s\n' "Node is healthy. Proceeding."
+  else
+    printf '%s\n' "Skipping reboot for node: $node (apply mode: $mode)"
+  fi
+done
