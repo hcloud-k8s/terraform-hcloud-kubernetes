@@ -1185,7 +1185,9 @@ kubectl get pods  # This will trigger OIDC authentication
 
 <!-- Lifecycle -->
 ## ♻️ Lifecycle
-Any minor or major upgrades to Talos and Kubernetes will result in a major version change of this module. Please be aware that downgrades are typically neither supported nor tested.
+All [component](#-components) versions are managed by this module and validated for compatibility with the supported Kubernetes version.
+
+Any minor or major upgrade to **Talos** or **Kubernetes** results in a major version change for this module. Downgrades are generally neither supported nor tested.
 
 > [!IMPORTANT]
 > Before upgrading to the next major version of this module, ensure you are on the latest release of the current major version. Do not skip any major release upgrades.
