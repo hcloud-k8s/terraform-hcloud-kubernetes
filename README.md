@@ -22,7 +22,7 @@
     <img src="https://img.shields.io/github/forks/hcloud-k8s/terraform-hcloud-kubernetes" alt="forks" />
   </a>
   <a href="https://search.opentofu.org/module/hcloud-k8s/kubernetes/hcloud">
-    <img src="https://img.shields.io/badge/OpenTofu-Hcloud--K8s-blue?logo=opentofu" alt="OpenTofu Module" />
+    <img src="https://img.shields.io/badge/OpenTofu-Hcloud--K8s-FFDA18?logo=opentofu" alt="OpenTofu Module" />
   </a>
   <a href="https://registry.terraform.io/modules/hcloud-k8s/kubernetes/hcloud">
     <img src="https://img.shields.io/terraform/module/dt/hcloud-k8s/kubernetes/hcloud?logo=terraform&label=Terraform" alt="Terraform Registry downloads" />
@@ -1198,8 +1198,8 @@ The table below lists the minimum required versions of each component to support
 
 | Hcloud K8s | Kubernetes | Hcloud CCM | Hcloud CSI | Longhorn | Cilium | Ingress NGINX | Cert Manager |
 | :--------: | :--------: | :--------: | :--------: | :------: | :----: | :-----------: | :----------: |
-|  **(6)**   |    1.35    |     ?      |     ?      |   1.11   |   ?    |       -       |     1.19     |
-|  **(5)**   |    1.34    |    1.27    |    2.18    |   1.11   | (1.19) |     4.14      |     1.19     |
+|  **(6)**   |    1.35    |    1.30    |    2.19    |   1.11   |   ?    |       -       |     1.19     |
+|  **(5)**   |    1.34    |    1.27    |    2.18    |   1.11   |  1.19  |     4.14      |     1.19     |
 |  **(4)**   |    1.33    |    1.26    |    2.14    |  1.8.2   |  1.18  |     4.13      |     1.18     |
 <!--
 |   **3**    |    1.33    |    1.26    |    2.14    |   1.8.2  |  1.18  |     4.13      |     1.18     |
@@ -1215,8 +1215,8 @@ In this module, upgrades are conducted with care. You will consistently receive 
 
 <!--
 - Talos/K8s: https://github.com/siderolabs/talos/blob/release-1.6/pkg/machinery/constants/constants.go
-- HCCM: https://github.com/hetznercloud/hcloud-cloud-controller-manager/blob/becfd60814cd868ca972492298f17b8e7e11c8ed/docs/reference/version-policy.md
-- HCSI: https://github.com/hetznercloud/csi-driver/blob/main/docs/kubernetes/README.md#versioning-policy
+- HCCM: https://github.com/hetznercloud/hcloud-cloud-controller-manager/blob/main/docs/reference/version-policy.md
+- HCSI: https://github.com/hetznercloud/csi-driver/blob/main/docs/kubernetes/versioning-policy.md
 - Longhorn: https://longhorn.io/docs/1.10.0/best-practices/#kubernetes-version
 - Cilium: https://github.com/cilium/cilium/blob/v1.15/Documentation/network/kubernetes/requirements.rst#kubernetes-version
 - Ingress Nginx: https://github.com/kubernetes/ingress-nginx?tab=readme-ov-file#supported-versions-table 
@@ -1300,4 +1300,3 @@ Distributed under the MIT License. See [LICENSE](https://github.com/hcloud-k8s/t
 
 - [Talos Linux](https://www.talos.dev) for its impressively secure, immutable, and minimalistic Kubernetes distribution.
 - [Hetzner Cloud](https://www.hetzner.com/cloud) for offering excellent cloud infrastructure with robust Kubernetes integrations.
-- [Kube-Hetzner](https://github.com/kube-hetzner/terraform-hcloud-kube-hetzner) and [Terraform - Hcloud - Talos](https://github.com/hcloud-talos/terraform-hcloud-talos) for providing practical examples and inspiration for this module.
