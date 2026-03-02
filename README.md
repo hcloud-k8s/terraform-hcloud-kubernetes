@@ -71,12 +71,12 @@ Provision a highly available and secure Kubernetes cluster on Hetzner Cloud, def
 
 * **Immutable Infrastructure:** Uses Talos Linux to deliver a fully declarative, immutable Kubernetes cluster.
 * **Multi-Architecture:** Supports deployment on both **AMD64** and **ARM64** instances, with automated image builds.
-* **High Availability:** Provides high availability across control plane and worker components for consistent, reliable operation.
+* **High Availability:** Provides high availability across control plane and worker components for reliable operation.
 * **Autoscaling:** Supports automatic scaling of both **Nodes** and **Pods** to seamlessly handle dynamic workloads.
-* **Quick Start:** Optional pre-integrations for **Gateway API**, **Cert Manager**, and **Longhorn** simplify rapid application deployment.
+* **Quick Start:** Optional **Gateway API**, **Cert Manager**, and **Longhorn** integrations for faster app deployment.
 * **Dual-Stack:** Load balancers provide native **IPv4** and **IPv6** connectivity with **PROXY Protocol** support.
 * **Isolated Network:** Keeps all internal cluster traffic confined to an isolated, private Hetzner Cloud Network.
-* **Security:** Enforces a security-first architecture with perimeter firewalls and encryption for data in transit and at rest.
+* **Security:** Security-first architecture with perimeter firewalls and encryption for data in transit and at rest.
 
 <!-- Components -->
 ### 📦 Components
