@@ -69,14 +69,14 @@ This project is committed to production-grade configuration and lifecycle manage
 
 Provision a highly available and secure Kubernetes cluster on Hetzner Cloud, defined by these key features:
 
-* **Immutable Infrastructure:** Utilizes Talos Linux to provide a fully declarative, completely immutable Kubernetes cluster.
-* **Architecture Flexibility:** Supports deployment on both **AMD64** and **ARM64** instances with automated image synchronization.
-* **Maximized Uptime:** Delivers high availability across all control plane and worker components for consistent, reliable performance.
-* **Elastic Scaling:** Supports automatic scaling of both **nodes** and **pods** to effortlessly accommodate dynamic workloads.
-* **Quick Start Addons:** Optional, pre-integrated Ingress Controller and Cert Manager simplifies the rapid deployment of applications.
-* **Dual-Stack Networking:** Load Balancers offer native support for both **IPv4** and **IPv6** for modern, efficient traffic management.
-* **Isolated Network Fabric:** Ensures all internal cluster traffic is confined to an isolated, private Hetzner Cloud Network.
-* **Comprehensive Security:** Enforces a security-first design with perimeter firewalls and encryption applied to data both in transit and at rest.
+* **Immutable Infrastructure:** Uses Talos Linux to deliver a fully declarative, immutable Kubernetes cluster.
+* **Multi-Architecture:** Supports deployment on both **AMD64** and **ARM64** instances, with automated image builds.
+* **High Availability:** Provides high availability across control plane and worker components for consistent, reliable operation.
+* **Autoscaling:** Supports automatic scaling of both **Nodes** and **Pods** to seamlessly handle dynamic workloads.
+* **Quick Start:** Optional pre-integrations for **Gateway API**, **Cert Manager**, and **Longhorn** simplify rapid application deployment.
+* **Dual-Stack:** Load balancers provide native **IPv4** and **IPv6** connectivity with **PROXY Protocol** support.
+* **Isolated Network:** Keeps all internal cluster traffic confined to an isolated, private Hetzner Cloud Network.
+* **Security:** Enforces a security-first architecture with perimeter firewalls and encryption for data in transit and at rest.
 
 <!-- Components -->
 ### 📦 Components
