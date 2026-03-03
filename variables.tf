@@ -501,15 +501,6 @@ variable "cluster_autoscaler_nodepools" {
   }
 
   validation {
-    condition = sum(concat(
-      [for control_nodepool in var.control_plane_nodepools : coalesce(control_nodepool.count, 1)],
-      [for worker_nodepool in var.worker_nodepools : coalesce(worker_nodepool.count, 1)],
-      [for cluster_autoscaler_nodepools in var.cluster_autoscaler_nodepools : cluster_autoscaler_nodepools.max]
-    )) <= 100
-    error_message = "The total count of nodes must not exceed 100."
-  }
-
-  validation {
     condition = alltrue([
       for np in var.cluster_autoscaler_nodepools : contains([
         "fsn1", "nbg1", "hel1", "ash", "hil", "sin"
