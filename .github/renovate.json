@@ -49,6 +49,7 @@
         "helm"
       ],
       "matchDepNames": [
+        "cert-manager",
         "cilium",
         "longhorn",
         "siderolabs/talos"
