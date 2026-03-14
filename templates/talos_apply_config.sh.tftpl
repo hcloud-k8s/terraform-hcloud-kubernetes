@@ -13,9 +13,44 @@ for host in "$@"; do
     eval "machine_config_value=\$$envname"
     printf '%s' "$machine_config_value" > "$machine_config"
 
+    # Evaluate if the new machine configuration requires a reboot
+    requires_reboot=0
+    dry_run_output=$(talos_apply_config --nodes "$host" --file "$machine_config" --dry-run 2>&1 || true)
+    if printf '%s' "$dry_run_output" | grep -Eiq 'with a reboot'; then
+      requires_reboot=1
+      printf '%s\n' "Reboot required for node: $host"
+    fi
+
+    apply_mode="${talos_machine_configuration_apply_mode}"
+    if [ "$apply_mode" = "staged_if_needing_reboot" ]; then
+      if [ "$requires_reboot" -eq 1 ]; then
+        apply_mode="staged"
+      else
+        apply_mode="auto"
+      fi
+    fi
+
     retry=1
-    until talos_apply_config --nodes "$host" --file "$machine_config"; do
+    until talos_apply_config --nodes "$host" --file "$machine_config" --mode "$apply_mode"; do
       talos_retry_or_exit retry
     done
+
+    if [ "$requires_reboot" -eq 1 ] && [ "$apply_mode" = "staged" ]; then
+      if ${talos_machine_configuration_apply_automatic_reboot_enabled}; then
+        printf '%s\n' "Rebooting node: $host..."
+        retry=1
+        while true; do
+          if talosctl reboot --talosconfig "$talosconfig" -n "$host"; then
+            break
+          fi
+          talos_retry_or_exit retry
+        done
+        printf '%s\n' "Checking node health..."
+        talos_wait_for_health
+        printf '%s\n' "Node is healthy. Proceeding."
+      else
+        printf '%s\n' "Reboot required for node: $host, but automatic reboot is disabled."
+      fi
+    fi
   )
 done
