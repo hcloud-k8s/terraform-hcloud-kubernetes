@@ -28,10 +28,6 @@ data "helm_template" "longhorn" {
 
   values = [
     yamlencode({
-      preUpgradeChecker = {
-        upgradeVersionCheck = false
-      }
-
       defaultSettings = {
         allowCollectingLonghornUsageMetrics = false
         kubernetesClusterAutoscalerEnabled  = local.cluster_autoscaler_enabled
