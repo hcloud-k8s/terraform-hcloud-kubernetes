@@ -1,5 +1,6 @@
 locals {
-  talos_schematic_id = coalesce(var.talos_schematic_id, talos_image_factory_schematic.this[0].id)
+  talos_schematic_id = var.talos_schematic_id != null ? var.talos_schematic_id : talos_image_factory_schematic.this[0].id
+
 
   talos_installer_image_url = data.talos_image_factory_urls.amd64.urls.installer
   talos_amd64_image_url     = data.talos_image_factory_urls.amd64.urls.disk_image
