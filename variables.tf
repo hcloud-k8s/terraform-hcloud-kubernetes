@@ -1959,7 +1959,7 @@ variable "gateway_api_crds_enabled" {
 
 variable "gateway_api_crds_version" {
   type        = string
-  default     = "v1.4.1" # https://github.com/kubernetes-sigs/gateway-api
+  default     = "v1.5.1" # https://github.com/kubernetes-sigs/gateway-api
   description = "Specifies the version of the Gateway API Custom Resource Definitions (CRDs) to deploy."
 }
 
