@@ -2,8 +2,7 @@ locals {
   network_public_ipv4_enabled = var.talos_public_ipv4_enabled
   network_public_ipv6_enabled = var.talos_public_ipv6_enabled && var.talos_ipv6_enabled
 
-  hcloud_network_id   = length(data.hcloud_network.this) > 0 ? data.hcloud_network.this[0].id : hcloud_network.this[0].id
-  hcloud_network_zone = data.hcloud_location.this.network_zone
+  hcloud_network_id = length(data.hcloud_network.this) > 0 ? data.hcloud_network.this[0].id : hcloud_network.this[0].id
 
   # Network ranges
   network_ipv4_cidr                = length(data.hcloud_network.this) > 0 ? data.hcloud_network.this[0].ip_range : var.network_ipv4_cidr
@@ -40,11 +39,42 @@ locals {
   cluster_autoscaler_public_ipv4_list  = compact(distinct([for server in local.talos_discovery_cluster_autoscaler : server.public_ipv4_address]))
   cluster_autoscaler_public_ipv6_list  = compact(distinct([for server in local.talos_discovery_cluster_autoscaler : server.public_ipv6_address]))
   cluster_autoscaler_private_ipv4_list = compact(distinct([for server in local.talos_discovery_cluster_autoscaler : server.private_ipv4_address]))
+
+  # Extracts the network zone with the highest total number of control plane nodes (e.g. "eu-central")
+  location_to_network_zone = length(data.hcloud_locations.all.locations) > 0 ? {
+    for loc in data.hcloud_locations.all.locations : (
+      length(split("-", loc.name)) > 1 ? split("-", loc.name)[0] : loc.name
+    ) => loc.network_zone
+    } : {
+    "fsn1" = "eu-central"
+    "nbg1" = "eu-central"
+    "sin"  = "ap-southeast"
+    "ash"  = "us-east"
+    "hil"  = "us-west"
+  }
+
+  control_plane_zone_weights = {
+    for zone in distinct([
+      for np in var.control_plane_nodepools :
+      lookup(local.location_to_network_zone, np.location, "eu-central")
+    ]) :
+    zone => sum([
+      for np in var.control_plane_nodepools : np.count
+      if lookup(local.location_to_network_zone, np.location, "eu-central") == zone
+    ])
+  }
+
+  hcloud_network_zone = (
+    length(var.control_plane_nodepools) > 0 ?
+    sort([
+      for zone, w in local.control_plane_zone_weights : zone
+      if w == max([for w2 in values(local.control_plane_zone_weights) : w2]...)
+    ])[0]
+    : "eu-central"
+  )
 }
 
-data "hcloud_location" "this" {
-  name = local.control_plane_nodepools[0].location
-}
+data "hcloud_locations" "all" {}
 
 data "hcloud_network" "this" {
   count = var.hcloud_network != null || var.hcloud_network_id != null ? 1 : 0
