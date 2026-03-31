@@ -1715,6 +1715,17 @@ variable "ingress_nginx_enabled" {
   }
 }
 
+variable "ingress_nginx_deprecation_ignored" {
+  type        = bool
+  default     = false
+  description = "Acknowledges that ingress-nginx is deprecated. Must be set to true when ingress_nginx_enabled is true."
+
+  validation {
+    condition     = var.ingress_nginx_enabled ? var.ingress_nginx_deprecation_ignored : true
+    error_message = "Ingress NGINX is deprecated. Set ingress_nginx_deprecation_ignored = true to enable ingress_nginx_enabled."
+  }
+}
+
 variable "ingress_nginx_kind" {
   type        = string
   default     = "Deployment"
