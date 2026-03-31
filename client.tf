@@ -141,6 +141,11 @@ data "external" "client_prerequisites_check" {
           missing=1
       fi
 
+      if ! command -v curl >/dev/null 2>&1; then
+          printf '\n%s' ' - curl is not installed or not in PATH. Install it at https://curl.se/download.html' >&2
+          missing=1
+      fi
+
       if ! command -v jq >/dev/null 2>&1; then
           printf '\n%s' ' - jq is not installed or not in PATH. Install it at https://jqlang.org/download/' >&2
           missing=1
