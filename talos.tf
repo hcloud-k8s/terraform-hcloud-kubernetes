@@ -75,6 +75,12 @@ locals {
     )
   })
 
+  # Health Check
+  cluster_health_check_commands = templatefile("${path.module}/templates/cluster_health_check.sh.tftpl", {
+    kube_api_url   = local.kube_api_url_external
+    cluster_access = var.cluster_access
+  })
+
   # Cluster Status
   cluster_initialized = length(data.hcloud_certificates.state.certificates) > 0
 }
@@ -406,36 +412,28 @@ resource "terraform_data" "talos_access_data" {
   }
 }
 
-data "http" "kube_api_health" {
+resource "terraform_data" "cluster_health_check" {
   count = var.cluster_healthcheck_enabled ? 1 : 0
 
-  url      = "${terraform_data.talos_access_data.output.kube_api_url}/version"
-  insecure = true
+  triggers_replace = [
+    terraform_data.synchronize_manifests.id
+  ]
 
-  retry {
-    attempts     = 60
-    min_delay_ms = 5000
-    max_delay_ms = 5000
-  }
+  provisioner "local-exec" {
+    when  = create
+    quiet = true
+    command = join("\n",
+      [
+        "set -eu",
+        local.talosctl_commands,
+        local.cluster_health_check_commands,
+      ]
+    )
 
-  lifecycle {
-    postcondition {
-      condition     = self.status_code == 401
-      error_message = "Status code invalid"
+    environment = {
+      TALOSCONFIG = nonsensitive(data.talos_client_configuration.this.talos_config)
     }
   }
 
   depends_on = [terraform_data.synchronize_manifests]
-}
-
-data "talos_cluster_health" "this" {
-  count = var.cluster_healthcheck_enabled && (var.cluster_access == "private") ? 1 : 0
-
-  client_configuration   = talos_machine_secrets.this.client_configuration
-  endpoints              = terraform_data.talos_access_data.output.endpoints
-  control_plane_nodes    = terraform_data.talos_access_data.output.control_plane_nodes
-  worker_nodes           = terraform_data.talos_access_data.output.worker_nodes
-  skip_kubernetes_checks = false
-
-  depends_on = [data.http.kube_api_health]
 }
