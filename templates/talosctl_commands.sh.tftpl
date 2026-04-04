@@ -69,6 +69,18 @@ talos_apply_config() {
     "$@"
 }
 
+talos_reboot() {
+  talosctl reboot \
+    --talosconfig "$talosconfig" \
+%{ if talos_reboot_debug ~}
+    --debug \
+%{ endif ~}
+%{ if talos_reboot_mode != null ~}
+    --mode '${talos_reboot_mode}' \
+%{ endif ~}
+    "$@"
+}
+
 talos_upgrade_k8s() {
   awk -v talosconfig="$talosconfig" '
     function indent(s) { return match(s, /[^[:space:]]/) ? RSTART - 1 : 0 }

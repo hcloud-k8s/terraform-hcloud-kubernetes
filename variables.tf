@@ -116,7 +116,7 @@ variable "talosctl_version_check_enabled" {
 
 variable "talosctl_retries" {
   type        = number
-  default     = 10
+  default     = 100
   description = "Specifies how many times talosctl operations should retry before failing. This setting helps improve resilience against transient network issues or temporary API unavailability."
 
   validation {
@@ -612,6 +612,23 @@ variable "talos_upgrade_reboot_mode" {
   }
 }
 
+variable "talos_reboot_debug" {
+  type        = bool
+  default     = false
+  description = "Enable debug operation from kernel logs during Talos reboots. When true, --wait is set to true by talosctl."
+}
+
+variable "talos_reboot_mode" {
+  type        = string
+  default     = null
+  description = "Select the reboot mode. Mode \"powercycle\" bypasses kexec, and mode \"force\" skips graceful teardown. Valid values: \"default\", \"powercycle\", or \"force\"."
+
+  validation {
+    condition     = var.talos_reboot_mode == null || contains(["default", "powercycle", "force"], var.talos_reboot_mode)
+    error_message = "The talos_reboot_mode must be \"default\", \"powercycle\", or \"force\"."
+  }
+}
+
 variable "talos_upgrade_stage" {
   type        = bool
   default     = false
@@ -668,12 +685,18 @@ variable "talos_kernel_modules" {
 variable "talos_machine_configuration_apply_mode" {
   type        = string
   default     = "auto"
-  description = "Determines how changes to Talos machine configurations are applied. 'auto' (default) applies changes immediately and reboots if necessary. 'reboot' applies changes and then reboots the node. 'no_reboot' applies changes immediately without a reboot, failing if a reboot is required. 'staged' stages changes to apply on the next reboot without initiating a reboot."
+  description = "Determines how changes to Talos machine configurations are applied. 'auto' (default) applies changes immediately and reboots if necessary. 'reboot' applies changes and then reboots the node. 'no_reboot' applies changes immediately without a reboot, failing if a reboot is required. 'staged' stages changes to apply on the next reboot. 'staged_if_needing_reboot' performs a dry-run and uses 'staged' mode if reboot is needed, 'auto' otherwise."
 
   validation {
-    condition     = contains(["auto", "reboot", "no_reboot", "staged"], var.talos_machine_configuration_apply_mode)
-    error_message = "The talos_machine_configuration_apply_mode must be 'auto', 'reboot', 'no_reboot', or 'staged'."
+    condition     = contains(["auto", "reboot", "no_reboot", "staged", "staged_if_needing_reboot"], var.talos_machine_configuration_apply_mode)
+    error_message = "The talos_machine_configuration_apply_mode must be 'auto', 'reboot', 'no_reboot', 'staged', or 'staged_if_needing_reboot'."
   }
+}
+
+variable "talos_staged_configuration_automatic_reboot_enabled" {
+  type        = bool
+  default     = true
+  description = "Determines whether nodes are rebooted automatically after Talos machine configuration changes are applied in 'staged' mode, or when 'staged_if_needing_reboot' resolves to 'staged' mode."
 }
 
 variable "talos_sysctls_extra_args" {

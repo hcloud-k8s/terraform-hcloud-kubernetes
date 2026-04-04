@@ -1,0 +1,25 @@
+%{ if healthcheck_enabled ~}
+talos_wait_for_health
+%{ endif ~}
+
+set -- ${join(" ", target_nodes)}
+for host in "$@"; do
+  host_env_suffix=$(printf '%s' "$host" | tr . _)
+  apply_mode_env_name="TALOS_APPLY_MODE_$host_env_suffix"
+  eval "apply_mode=\$$apply_mode_env_name"
+
+  if [ "$apply_mode" = "staged" ]; then
+    printf '%s\n' "Rebooting node: $host"
+
+    retry=1
+    until talos_reboot --nodes "$host"; do
+      talos_retry_or_exit retry
+    done
+
+%{ if healthcheck_enabled ~}
+    talos_wait_for_health
+%{ endif ~}
+
+    printf '%s\n' "Node $host rebooted successfully"
+  fi
+done
