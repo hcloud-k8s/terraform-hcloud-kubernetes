@@ -320,6 +320,7 @@ resource "talos_machine_configuration_apply" "worker" {
 
   depends_on = [
     terraform_data.upgrade_kubernetes,
+    talos_machine_configuration_apply.control_plane,
     terraform_data.talos_staged_configuration_reboot_control_plane
   ]
 }
@@ -398,6 +399,8 @@ resource "terraform_data" "talos_machine_configuration_apply_cluster_autoscaler"
   depends_on = [
     data.external.talosctl_version_check,
     terraform_data.upgrade_kubernetes,
+    talos_machine_configuration_apply.control_plane,
+    talos_machine_configuration_apply.worker,
     terraform_data.talos_staged_configuration_reboot_control_plane,
     terraform_data.talos_staged_configuration_reboot_worker
   ]
@@ -409,6 +412,8 @@ resource "talos_machine_bootstrap" "this" {
   node                 = local.talos_primary_node_private_ipv4
 
   depends_on = [
+    talos_machine_configuration_apply.control_plane,
+    talos_machine_configuration_apply.worker,
     terraform_data.talos_staged_configuration_reboot_control_plane,
     terraform_data.talos_staged_configuration_reboot_worker,
     terraform_data.talos_machine_configuration_apply_cluster_autoscaler
@@ -446,6 +451,8 @@ resource "terraform_data" "synchronize_manifests" {
   depends_on = [
     data.external.talosctl_version_check,
     talos_machine_bootstrap.this,
+    talos_machine_configuration_apply.control_plane,
+    talos_machine_configuration_apply.worker,
     terraform_data.talos_staged_configuration_reboot_control_plane,
     terraform_data.talos_staged_configuration_reboot_worker,
     terraform_data.talos_machine_configuration_apply_cluster_autoscaler
