@@ -44,30 +44,6 @@ locals {
     resolveMemberNames   = true
   }
 
-  # Disk Encryption Configuration
-  talos_system_disk_encryption = merge(
-    var.talos_state_partition_encryption_enabled ? {
-      state = {
-        provider = "luks2"
-        options  = ["no_read_workqueue", "no_write_workqueue"]
-        keys = [{
-          nodeID = {}
-          slot   = 0
-        }]
-      }
-    } : {},
-    var.talos_ephemeral_partition_encryption_enabled ? {
-      ephemeral = {
-        provider = "luks2"
-        options  = ["no_read_workqueue", "no_write_workqueue"]
-        keys = [{
-          nodeID = {}
-          slot   = 0
-        }]
-      }
-    } : {}
-  )
-
   # Kubelet extra mounts
   talos_kubelet_extra_mounts = concat(
     var.longhorn_enabled ? [
@@ -135,6 +111,35 @@ locals {
       name       = local.talos_private_link_name
     }
   ]
+
+  # System Volume Config
+  talos_system_volume_encryption = {
+    provider = "luks2"
+    options  = ["no_read_workqueue", "no_write_workqueue"]
+    keys = [{
+      nodeID = {}
+      slot   = 0
+    }]
+  }
+
+  talos_system_volume_config_patches = concat(
+    var.talos_state_partition_encryption_enabled ? [
+      {
+        apiVersion = "v1alpha1"
+        kind       = "VolumeConfig"
+        name       = "STATE"
+        encryption = local.talos_system_volume_encryption
+      }
+    ] : [],
+    var.talos_ephemeral_partition_encryption_enabled ? [
+      {
+        apiVersion = "v1alpha1"
+        kind       = "VolumeConfig"
+        name       = "EPHEMERAL"
+        encryption = local.talos_system_volume_encryption
+      }
+    ] : []
+  )
 
   # Nameservers
   talos_nameservers = [
@@ -227,8 +232,7 @@ locals {
           },
           var.talos_sysctls_extra_args
         )
-        registries           = var.talos_registries
-        systemDiskEncryption = local.talos_system_disk_encryption
+        registries = var.talos_registries
         features = {
           hostDNS = local.talos_host_dns
         }
@@ -258,6 +262,7 @@ locals {
     local.talos_public_dhcp_config_patches,
     local.talos_private_link_config_patches,
     local.talos_private_dhcp_config_patches,
+    local.talos_system_volume_config_patches,
     [local.talos_resolver_config_patch],
     [local.talos_time_sync_config_patch],
     local.talos_static_host_config_patches
