@@ -56,8 +56,7 @@ for host in "$@"; do
       talos_retry_or_exit retry
     done
 
-    if [ "$resolved_apply_mode" = "staged" ]; then
-%{ if staged_configuration_automatic_reboot_enabled ~}
+    if [ "$resolved_apply_mode" = "staged" ] && [ "${staged_configuration_automatic_reboot_enabled}" = "true" ]; then
       printf '%s\n' "Rebooting node: $host"
 
       retry=1
@@ -70,7 +69,6 @@ for host in "$@"; do
 %{ endif ~}
 
       printf '%s\n' "Node $host rebooted successfully"
-%{ endif ~}
     fi
   )
 done
