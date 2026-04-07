@@ -761,16 +761,16 @@ variable "talos_nameservers" {
   description = "Specifies a list of IPv4 and IPv6 nameserver addresses used for DNS resolution by nodes and CoreDNS within the cluster."
 }
 
-variable "talos_extra_host_entries" {
+variable "talos_static_hosts" {
   type = list(object({
-    ip      = string
-    aliases = list(string)
+    ip        = string
+    hostnames = list(string)
   }))
   default     = []
-  description = "Specifies additional host entries to be added on each node. Each entry must include an IP address and a list of aliases associated with that IP."
+  description = "Specifies static host mappings to be added on each node. Each entry must include an IP address and a list of hostnames associated with that IP."
 }
 
-variable "talos_time_servers" {
+variable "talos_ntp_servers" {
   type = list(string)
   default = [
     "ntp1.hetzner.de",
