@@ -28,6 +28,16 @@
       "minimumReleaseAge": "14 days"
     },
     {
+      "description": "Disable Cluster Autoscaler Helm chart updates",
+      "matchDatasources": [
+        "helm"
+      ],
+      "matchPackageNames": [
+        "cluster-autoscaler"
+      ],
+      "enabled": false
+    },
+    {
       "description": "Kubernetes — block minor/major updates",
       "matchDatasources": [
         "github-tags"
