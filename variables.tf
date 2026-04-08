@@ -746,6 +746,72 @@ variable "talos_extra_routes" {
   }
 }
 
+variable "talos_certificates" {
+  type        = any
+  default     = {}
+  description = <<-EOF
+    Additional trusted CA certificates to be added to the Talos configuration.
+    Map keys are used as names for the TrustedRootsConfig documents.
+    Values can be either a single PEM-encoded string containing one or more certificates (inline or from file), or a list of PEM-encoded strings.
+
+    Example:
+    ```hcl
+    talos_certificates = {
+      # Inline string (single certificate)
+      "inline-ca" = "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"
+
+      # Single certificate from file
+      "file-ca" = [file("ca.crt")]
+
+      # Multiple certificates from files (chain)
+      "corporate-chain" = [file("root.crt"), file("intermediate.crt")]
+
+      # Multiple inline certificates in a single string (backward compatible)
+      "legacy-ca" = <<-EOT
+        -----BEGIN CERTIFICATE-----
+        ...
+        -----END CERTIFICATE-----
+        -----BEGIN CERTIFICATE-----
+        ...
+        -----END CERTIFICATE-----
+      EOT
+    }
+    ```
+  EOF
+
+  validation {
+    condition     = var.talos_certificates == null ? true : can(keys(var.talos_certificates))
+    error_message = "The 'talos_certificates' variable must be a map."
+  }
+
+  validation {
+    condition = var.talos_certificates == null ? true : alltrue([
+      for name, chain in var.talos_certificates :
+      can(regex("^[a-z0-9-]+$", name))
+    ])
+    error_message = "Trusted root certificates config names must be lowercase alphanumeric and may contain hyphens."
+  }
+
+  validation {
+    condition = var.talos_certificates == null ? true : alltrue([
+      for chain in values(var.talos_certificates) :
+      length(can(tolist(chain)) ? tolist(chain) : [tostring(chain)]) > 0
+    ])
+    error_message = "Each certificate group in 'talos_certificates' must contain at least one certificate."
+  }
+
+  validation {
+    condition = var.talos_certificates == null ? true : alltrue([
+      for chain in values(var.talos_certificates) :
+      alltrue([
+        for cert in(can(tolist(chain)) ? tolist(chain) : [tostring(chain)]) :
+        can(regex("(?s)-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", cert))
+      ])
+    ])
+    error_message = "All certificates must be valid PEM-encoded strings containing BEGIN/END CERTIFICATE markers."
+  }
+}
+
 variable "talos_coredns_enabled" {
   type        = bool
   default     = true

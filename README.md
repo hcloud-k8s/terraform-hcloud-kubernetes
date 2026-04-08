@@ -1183,6 +1183,50 @@ kubectl get pods  # This will trigger OIDC authentication
 
 </details>
 
+<!-- Trusted CA Certificates -->
+<details>
+<summary><b>Trusted CA Certificates</b></summary>
+
+Talos allows adding additional trusted root CA certificates to the system. This is useful for private image registries, OIDC providers with internal CAs, or other enterprise services.
+
+The `talos_certificates` variable supports several input formats for maximum flexibility:
+
+#### Single Certificate (Inline)
+
+```hcl
+talos_certificates = {
+  "my-custom-ca" = "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"
+}
+```
+
+#### Multiple Certificates (List)
+
+```hcl
+talos_certificates = {
+  "enterprise-ca" = [
+    file("root.crt"),
+    file("intermediate.crt")
+  ]
+}
+```
+
+#### Multi-Cert PEM Block (String)
+
+```hcl
+talos_certificates = {
+  "legacy-ca" = <<-EOT
+    -----BEGIN CERTIFICATE-----
+    ...
+    -----END CERTIFICATE-----
+    -----BEGIN CERTIFICATE-----
+    ...
+    -----END CERTIFICATE-----
+  EOT
+}
+```
+
+</details>
+
 <!-- Lifecycle -->
 ## ♻️ Lifecycle
 All [component](#-components) versions are managed by this module and validated for compatibility with the supported Kubernetes version.
