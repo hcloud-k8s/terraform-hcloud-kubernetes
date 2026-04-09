@@ -27,7 +27,7 @@ output "talos_client_configuration" {
   value       = data.talos_client_configuration.this
 }
 
-output "talosconfig_machine_secrets" {
+output "talos_machine_secrets" {
   description = "Talos machine secret, suitable for use with other Terraform providers or tools."
   value       = talos_machine_secrets.this.machine_secrets
   sensitive   = true
