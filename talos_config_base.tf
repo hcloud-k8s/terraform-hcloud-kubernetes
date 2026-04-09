@@ -189,6 +189,19 @@ locals {
     }
   }
 
+  # Additional trusted CA certificates
+  talos_trusted_certs_config_patches = var.talos_certificates != null ? [
+    for name, chain in var.talos_certificates : {
+      apiVersion = "v1alpha1"
+      kind       = "TrustedRootsConfig"
+      name       = name
+      certificates = join("\n", [
+        for cert in(can(tolist(chain)) ? tolist(chain) : [tostring(chain)]) :
+        trimspace(cert) if trimspace(cert) != ""
+      ])
+    }
+  ] : []
+
   # Talos Base Config
   talos_base_config_patches = concat(
     [{
@@ -265,6 +278,7 @@ locals {
     local.talos_system_volume_config_patches,
     [local.talos_resolver_config_patch],
     [local.talos_time_sync_config_patch],
-    local.talos_static_host_config_patches
+    local.talos_static_host_config_patches,
+    local.talos_trusted_certs_config_patches
   )
 }
