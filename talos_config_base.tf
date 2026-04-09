@@ -31,11 +31,15 @@ locals {
   talos_private_link_name        = local.talos_public_interface_enabled ? "eth1" : "eth0"
 
   # Routes
-  talos_extra_routes = [for cidr in var.talos_extra_routes : {
-    destination = cidr
-    gateway     = local.network_ipv4_gateway
-    metric      = 512
-  }]
+  # Note: Default route (0.0.0.0/0) omits the 'network' key per Talos routing config requirements
+  # See https://github.com/siderolabs/talos/issues/12521
+  talos_extra_routes = [for cidr in var.talos_extra_routes : merge(
+    {
+      gateway = local.network_ipv4_gateway
+      metric  = 512
+    },
+    cidr != "0.0.0.0/0" ? { destination = cidr } : {}
+  )]
 
   # DNS Configuration
   talos_host_dns = {
