@@ -1277,7 +1277,7 @@ In this module, upgrades are conducted with care. You will consistently receive 
   * [ ] Remove Ingress NGINX in v5 (~ Q2/Q3 2026)
 * [ ] **Upgrade to latest Talos 1.12**<br>
       Once all components have compatible versions, the upgrade can be performed.
-
+* [ ] **Support for Hetzner [Dedicated Bare Metal Servers](https://www.hetzner.com/de/dedicated-rootserver/)**
 
 <!-- Support this Project -->
 ## ❤️ Support this Project
