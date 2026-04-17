@@ -1334,7 +1334,7 @@ Contributions are always welcome!
 Hcloud Kubernetes is an independent, [open source](https://opensource.org/osd) project built for the Hetzner Community. Its goal is to make Kubernetes deployments as predictable, repeatable, and flexible as possible.
 
 <div align="center">
-  <img src="assets/images/supported-by-hetzner-red.png" alt="Supported by Hetzner" width="400" />
+  <img src="https://raw.githubusercontent.com/hcloud-k8s/terraform-hcloud-kubernetes/main/assets/images/supported-by-hetzner-red.png" alt="Supported by Hetzner" width="400" />
   <p>
     This project is supported by Hetzner through testing infrastructure ❤️
   </p>
