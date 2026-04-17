@@ -1331,7 +1331,14 @@ Contributions are always welcome!
 
 <!-- Project Meta -->
 ## 📎 Project Info
-This project is built for the public and will always remain fully [Open Source](https://opensource.org/osd).
+Hcloud Kubernetes is an independent, [open source](https://opensource.org/osd) project built for the Hetzner Community. Its goal is to make Kubernetes deployments as predictable, repeatable, and flexible as possible.
+
+<div align="center">
+  <img src="assets/images/supported-by-hetzner-red.png" alt="Supported by Hetzner" width="400" />
+  <p>
+    This project is supported by Hetzner through testing infrastructure ❤️
+  </p>
+</div>
 
 <!-- License -->
 ### ⚖️ License
