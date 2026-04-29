@@ -76,12 +76,6 @@ variable "cluster_talosconfig_path" {
   description = "If not null, the talosconfig will be written to a file speficified."
 }
 
-variable "cluster_graceful_destroy" {
-  type        = bool
-  default     = true
-  description = "Determines whether a graceful destruction process is enabled for Talos nodes. When enabled, it ensures that nodes are properly drained and decommissioned before being destroyed, minimizing disruption in the cluster."
-}
-
 variable "cluster_healthcheck_enabled" {
   type        = bool
   default     = true
@@ -684,7 +678,7 @@ variable "talos_kernel_modules" {
 
 variable "talos_machine_configuration_apply_mode" {
   type        = string
-  default     = "auto"
+  default     = "staged_if_needing_reboot"
   description = "Determines how changes to Talos machine configurations are applied. 'auto' (default) applies changes immediately and reboots if necessary. 'reboot' applies changes and then reboots the node. 'no_reboot' applies changes immediately without a reboot, failing if a reboot is required. 'staged' stages changes to apply on the next reboot. 'staged_if_needing_reboot' performs a dry-run and uses 'staged' mode if reboot is needed, 'auto' otherwise."
 
   validation {

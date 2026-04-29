@@ -254,12 +254,6 @@ resource "talos_machine_configuration_apply" "control_plane" {
 
   apply_mode = var.talos_machine_configuration_apply_mode
 
-  on_destroy = {
-    graceful = var.cluster_graceful_destroy
-    reset    = true
-    reboot   = false
-  }
-
   depends_on = [
     hcloud_load_balancer_service.kube_api,
     terraform_data.upgrade_kubernetes
@@ -311,12 +305,6 @@ resource "talos_machine_configuration_apply" "worker" {
   endpoint                    = var.cluster_access == "private" ? tolist(each.value.network)[0].ip : coalesce(each.value.ipv4_address, each.value.ipv6_address)
   node                        = tolist(each.value.network)[0].ip
   apply_mode                  = var.talos_machine_configuration_apply_mode
-
-  on_destroy = {
-    graceful = var.cluster_graceful_destroy
-    reset    = true
-    reboot   = false
-  }
 
   depends_on = [
     terraform_data.upgrade_kubernetes,
