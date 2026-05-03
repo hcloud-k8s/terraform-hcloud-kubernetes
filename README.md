@@ -1237,7 +1237,7 @@ The table below lists the minimum required versions of each component to support
 
 | Hcloud K8s | Kubernetes | Hcloud CCM | Hcloud CSI | Longhorn | Cilium | Ingress NGINX | Cert Manager |
 | :--------: | :--------: | :--------: | :--------: | :------: | :----: | :-----------: | :----------: |
-|  **(6)**   |    1.35    |    1.30    |    2.19    |   1.11   |   ?    |       -       |     1.19     |
+|  **(6)**   |    1.35    |    1.30    |    2.19    |   1.11   | 1.19.2 |       -       |     1.19     |
 |  **(5)**   |    1.34    |    1.27    |    2.18    |   1.11   |  1.19  |     4.14      |     1.19     |
 |   **4**    |    1.33    |    1.26    |    2.14    |  1.8.2   |  1.18  |     4.13      |     1.18     |
 <!--
@@ -1257,7 +1257,7 @@ In this module, upgrades are conducted with care. You will consistently receive 
 - HCCM: https://github.com/hetznercloud/hcloud-cloud-controller-manager/blob/main/docs/reference/version-policy.md
 - HCSI: https://github.com/hetznercloud/csi-driver/blob/main/docs/kubernetes/versioning-policy.md
 - Longhorn: https://longhorn.io/docs/1.10.0/best-practices/#kubernetes-version
-- Cilium: https://github.com/cilium/cilium/blob/v1.15/Documentation/network/kubernetes/requirements.rst#kubernetes-version
+- Cilium: https://github.com/cilium/cilium/blob/v1.19.2/Documentation/network/kubernetes/compatibility.rst
 - Ingress Nginx: https://github.com/kubernetes/ingress-nginx?tab=readme-ov-file#supported-versions-table 
 - Cert Manager: https://cert-manager.io/docs/releases/
 - Autoscaler: https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/README.md#releases
