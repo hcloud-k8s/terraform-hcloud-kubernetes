@@ -519,7 +519,7 @@ variable "cluster_autoscaler_config_patches" {
 
 variable "cluster_autoscaler_discovery_enabled" {
   type        = bool
-  default     = false
+  default     = true
   description = "Enable rolling upgrades of Cluster Autoscaler nodes during Talos OS upgrades and Talos configuration changes."
 }
 
