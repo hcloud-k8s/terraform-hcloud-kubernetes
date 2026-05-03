@@ -1271,8 +1271,6 @@ In this module, upgrades are conducted with care. You will consistently receive 
   * [x] Integrate Cilium Gateway API
   * [x] Deprecate Ingress NGINX in v4
   * [ ] Remove Ingress NGINX in v5 or v6
-* [ ] **Upgrade to latest Talos 1.12**<br>
-      Once all components have compatible versions, the upgrade can be performed.
 * [ ] **Support for Hetzner [Dedicated Bare Metal Servers](https://www.hetzner.com/de/dedicated-rootserver/)**
 
 <!-- Support this Project -->
