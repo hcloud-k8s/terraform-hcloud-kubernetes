@@ -1271,7 +1271,7 @@ In this module, upgrades are conducted with care. You will consistently receive 
   * [x] Add general support for Gateway API
   * [x] Integrate Cilium Gateway API
   * [x] Deprecate Ingress NGINX in v4
-  * [ ] Remove Ingress NGINX in v5 or v6
+  * [ ] Remove Ingress NGINX in v6
 * [ ] **Support for Hetzner [Dedicated Bare Metal Servers](https://www.hetzner.com/de/dedicated-rootserver/)**
 
 <!-- Support this Project -->
