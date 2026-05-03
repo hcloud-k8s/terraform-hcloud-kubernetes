@@ -237,15 +237,11 @@ Apply this change before proceeding. Once the delete protection is disabled, you
 
 **Terraform:**
 ```sh
-terraform state rm 'module.kubernetes.talos_machine_configuration_apply.worker'
-terraform state rm 'module.kubernetes.talos_machine_configuration_apply.control_plane'
 terraform state rm 'module.kubernetes.talos_machine_secrets.this'
 terraform destroy
 ```
 **OpenTofu:**
 ```sh
-tofu state rm 'module.kubernetes.talos_machine_configuration_apply.worker'
-tofu state rm 'module.kubernetes.talos_machine_configuration_apply.control_plane'
 tofu state rm 'module.kubernetes.talos_machine_secrets.this'
 tofu destroy
 ```
@@ -1243,7 +1239,7 @@ The table below lists the minimum required versions of each component to support
 | :--------: | :--------: | :--------: | :--------: | :------: | :----: | :-----------: | :----------: |
 |  **(6)**   |    1.35    |    1.30    |    2.19    |   1.11   |   ?    |       -       |     1.19     |
 |  **(5)**   |    1.34    |    1.27    |    2.18    |   1.11   |  1.19  |     4.14      |     1.19     |
-|  **(4)**   |    1.33    |    1.26    |    2.14    |  1.8.2   |  1.18  |     4.13      |     1.18     |
+|   **4**    |    1.33    |    1.26    |    2.14    |  1.8.2   |  1.18  |     4.13      |     1.18     |
 <!--
 |   **3**    |    1.33    |    1.26    |    2.14    |   1.8.2  |  1.18  |     4.13      |     1.18     |
 |   **2**    |    1.32    |    1.23    |    2.12    |   1.8.1  |  1.17  |     4.12      |     1.17     |
@@ -1273,8 +1269,8 @@ In this module, upgrades are conducted with care. You will consistently receive 
 * [ ] **Ingress NGINX [Retirement in March 2026](https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/)**<br>
   * [x] Add general support for Gateway API
   * [x] Integrate Cilium Gateway API
-  * [ ] Deprecate Ingress NGINX in v4 (~ Q1 2026)
-  * [ ] Remove Ingress NGINX in v5 (~ Q2/Q3 2026)
+  * [x] Deprecate Ingress NGINX in v4
+  * [ ] Remove Ingress NGINX in v5 or v6
 * [ ] **Upgrade to latest Talos 1.12**<br>
       Once all components have compatible versions, the upgrade can be performed.
 * [ ] **Support for Hetzner [Dedicated Bare Metal Servers](https://www.hetzner.com/de/dedicated-rootserver/)**
