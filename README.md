@@ -1237,6 +1237,7 @@ The table below lists the minimum required versions of each component to support
 
 | Hcloud K8s | Kubernetes | Hcloud CCM | Hcloud CSI | Longhorn | Cilium | Ingress NGINX | Cert Manager |
 | :--------: | :--------: | :--------: | :--------: | :------: | :----: | :-----------: | :----------: |
+|  **(7)**   |    1.36    |     ?      |     ?      |    ?     |   ?    |       -       |    (1.21)    |
 |  **(6)**   |    1.35    |    1.30    |    2.19    |   1.11   | 1.19.2 |       -       |     1.19     |
 |  **(5)**   |    1.34    |    1.27    |    2.18    |   1.11   |  1.19  |     4.14      |     1.19     |
 |   **4**    |    1.33    |    1.26    |    2.14    |  1.8.2   |  1.18  |     4.13      |     1.18     |
