@@ -251,8 +251,7 @@ resource "talos_machine_configuration_apply" "control_plane" {
   machine_configuration_input = data.talos_machine_configuration.control_plane[each.key].machine_configuration
   endpoint                    = var.cluster_access == "private" ? tolist(each.value.network)[0].ip : coalesce(each.value.ipv4_address, each.value.ipv6_address)
   node                        = tolist(each.value.network)[0].ip
-
-  apply_mode = var.talos_machine_configuration_apply_mode
+  apply_mode                  = var.talos_machine_configuration_apply_mode
 
   depends_on = [
     hcloud_load_balancer_service.kube_api,
