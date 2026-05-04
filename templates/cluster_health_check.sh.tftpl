@@ -1,0 +1,20 @@
+printf '%s\n' "Waiting for Kube API to be reachable..."
+api_retry=1
+while [ $api_retry -le 60 ]; do
+  status=$(curl --insecure --silent --output /dev/null --write-out "%%{http_code}" "${kube_api_url}/version" || echo "000")
+  if [ "$status" = "401" ] || [ "$status" = "200" ]; then
+    printf '%s\n' "Kube API is reachable."
+    break
+  fi
+  printf '%s\n' "API not ready (status $status). Retry $api_retry/60..."
+  api_retry=$((api_retry + 1))
+  sleep 5
+done
+if [ $api_retry -gt 60 ]; then
+  printf '%s\n' "Error: Kube API health check timed out."
+  exit 1
+fi
+%{ if cluster_access == "private" }
+printf '%s\n' "Waiting for Talos cluster health..."
+talos_wait_for_health
+%{ endif }
