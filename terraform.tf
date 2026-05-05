@@ -9,7 +9,7 @@ terraform {
 
     hcloud = {
       source  = "hetznercloud/hcloud"
-      version = "1.60.1"
+      version = "1.62.0"
     }
 
     helm = {
