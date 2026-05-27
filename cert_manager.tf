@@ -40,14 +40,16 @@ locals {
         matchLabelKeys = ["pod-template-hash"]
       }
     ],
-    nodeSelector = { "node-role.kubernetes.io/control-plane" : "" }
-    tolerations = [
+    nodeSelector = var.cluster_allow_scheduling_on_control_planes ? {
+          "node-role.kubernetes.io/control-plane" : ""
+      } : {}
+    tolerations = var.cluster_allow_scheduling_on_control_planes ? [
       {
         key      = "node-role.kubernetes.io/control-plane"
         effect   = "NoSchedule"
         operator = "Exists"
       }
-    ]
+    ] : []
   }
 }
 

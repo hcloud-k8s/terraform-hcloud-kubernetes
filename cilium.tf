@@ -125,7 +125,9 @@ data "helm_template" "cilium" {
         }
       }
       operator = {
-        nodeSelector = { "node-role.kubernetes.io/control-plane" : "" }
+        nodeSelector = var.cluster_allow_scheduling_on_control_planes ? {
+          "node-role.kubernetes.io/control-plane" : ""
+        } : {}
         replicas     = local.control_plane_sum > 1 ? 2 : 1
         podDisruptionBudget = {
           enabled        = true
