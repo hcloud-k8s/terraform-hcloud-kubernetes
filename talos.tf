@@ -249,7 +249,8 @@ resource "talos_machine_configuration_apply" "control_plane" {
     network      = s.network
     ipv4_address = s.ipv4_address
     ipv6_address = s.ipv6_address
-  } }
+    }
+  }
 
   client_configuration        = talos_machine_secrets.this.client_configuration
   machine_configuration_input = data.talos_machine_configuration.control_plane[each.key].machine_configuration
@@ -305,7 +306,8 @@ resource "talos_machine_configuration_apply" "worker" {
     network      = s.network
     ipv4_address = s.ipv4_address
     ipv6_address = s.ipv6_address
-  } }
+    }
+  }
 
   client_configuration        = talos_machine_secrets.this.client_configuration
   machine_configuration_input = data.talos_machine_configuration.worker[each.key].machine_configuration

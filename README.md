@@ -769,7 +769,7 @@ By default, this module calculates optimal subnets based on the provided network
     - **1st Half**: Allocated for internal special purpose subnets (`10.0.64.0/20` - `network_reserved_ipv4_cidr`)
       - `10.0.64.0/25`: Control Plane Nodes
       - `10.0.64.128/25`: Load Balancer
-      - `10.0.65.0 - 10.0.79.255`: Reserved (legacy Worker Node subnets)
+      - `10.0.65.0 - 10.0.79.255`: Reserved (Worker Node fixed subnets)
     - **2nd Half**: Allocated for Worker Nodes (`10.0.80.0/20` - `network_worker_nodes_ipv4_cidr`)
       - **1st Half**: Allocated for internal Worker Nodes (`10.0.80.0/21`)
         - `10.0.80.0/25`: Shared Worker Nodes subnet
@@ -809,12 +809,15 @@ Here is a table with more example calculations:
 | **10.0.0.0/19** | /28 (16 IPs)     | 10.0.8.0/22  (64) | 10.0.12.0/22 (1024) | 10.0.16.0/20 (16)   |
 | **10.0.0.0/20** | /29 (8 IPs)      | 10.0.4.0/23  (64) | 10.0.6.0/23 (512)   | 10.0.8.0/21 (8)     |
 | **10.0.0.0/21** | /30 (4 IPs)      | 10.0.2.0/24  (64) | 10.0.3.0/24 (256)   | 10.0.4.0/22 (4)     |
- 
+
 #### Explicit Subnet Allocation (`subnet_id`)
 
-By default, all new worker nodes share a single, unified node subnet to maximize IP availability and streamline routing. However, you can assign a custom `subnet_id` (0-29) to a specific worker nodepool to place its nodes into an explicitly allocated, isolated VPC subnet.
+By default, all worker nodes share a single, unified node subnet. However, you can assign a fixed subnet using the `subnet_id` (0-29) variable to a specific worker nodepool. This will place its nodes into an explicitly allocated subnet from the reserved legacy range (`network_reserved_ipv4_cidr`) instead of the default shared subnet.
 
-This feature relies on the reserved legacy subnet range (`network_reserved_ipv4_cidr`). Users with up to 30 worker node pools (using `/25` subnets in `10.0.65.0 - 10.0.79.255`) can migrate seamlessly using this option. In general, this option should be treated as a **legacy compatibility setting**, used only when strictly necessary, such as:
+This option is intended for backward compatibility with existing deployments or specific routing requirements.
+
+Users can declare up to 30 fixed subnets for worker node pools (using `/25` subnets in `10.0.65.0 - 10.0.79.255`). In general, this option is not recommended and should only be used when strictly necessary, such as:
+
 - Isolating traffic for specific legacy IP/CIDR firewall ACLs.
 - Maintaining IP assignments when migrating existing nodepools from older versions of this module to prevent nodes from being destroyed and recreated.
 

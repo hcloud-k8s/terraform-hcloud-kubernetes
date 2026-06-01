@@ -393,7 +393,7 @@ variable "worker_nodepools" {
   }
 
   validation {
-    condition = length([for np in var.worker_nodepools : np.subnet_id if np.subnet_id != null]) == length(distinct([for np in var.worker_nodepools : np.subnet_id if np.subnet_id != null]))
+    condition     = length([for np in var.worker_nodepools : np.subnet_id if np.subnet_id != null]) == length(distinct([for np in var.worker_nodepools : np.subnet_id if np.subnet_id != null]))
     error_message = "Worker nodepools cannot share the same subnet_id. Each subnet_id maps to a strict 1-to-1 isolated subnet. If you want nodepools to share a subnet, omit the subnet_id to use the default worker_shared subnet."
   }
 
