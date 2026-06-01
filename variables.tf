@@ -375,6 +375,7 @@ variable "worker_nodepools" {
     rdns_ipv4       = optional(string)
     rdns_ipv6       = optional(string)
     placement_group = optional(bool, true)
+    subnet_id       = optional(number)
   }))
   default     = []
   description = "Defines configuration settings for Worker node pools within the cluster."
@@ -382,6 +383,18 @@ variable "worker_nodepools" {
   validation {
     condition     = length(var.worker_nodepools) == length(distinct([for np in var.worker_nodepools : np.name]))
     error_message = "Worker nodepool names must be unique to avoid configuration conflicts."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.worker_nodepools : np.subnet_id == null || (np.subnet_id != null && np.subnet_id >= 0 && np.subnet_id <= 29)
+    ])
+    error_message = "The subnet_id must be between 0 and 29 to fit within the reserved special purpose network block."
+  }
+
+  validation {
+    condition = length([for np in var.worker_nodepools : np.subnet_id if np.subnet_id != null]) == length(distinct([for np in var.worker_nodepools : np.subnet_id if np.subnet_id != null]))
+    error_message = "Worker nodepools cannot share the same subnet_id. Each subnet_id maps to a strict 1-to-1 isolated subnet. If you want nodepools to share a subnet, omit the subnet_id to use the default worker_shared subnet."
   }
 
   validation {
@@ -452,7 +465,7 @@ variable "cluster_autoscaler_helm_chart" {
 
 variable "cluster_autoscaler_helm_version" {
   type        = string
-  default     = "9.50.1"
+  default     = "9.57.0"
   description = "Version of the Cluster Autoscaler Helm chart to deploy."
 }
 
@@ -464,7 +477,7 @@ variable "cluster_autoscaler_helm_values" {
 
 variable "cluster_autoscaler_image_tag" {
   type        = string
-  default     = "v1.33.4"
+  default     = "v1.35.0"
   description = "Version of the Cluster Autoscaler Image."
 }
 

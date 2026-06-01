@@ -170,7 +170,7 @@ locals {
 }
 
 data "talos_machine_configuration" "control_plane" {
-  for_each = { for node in hcloud_server.control_plane : node.name => node }
+  for_each = toset([for node in hcloud_server.control_plane : node.name])
 
   talos_version      = var.talos_version
   cluster_name       = var.cluster_name

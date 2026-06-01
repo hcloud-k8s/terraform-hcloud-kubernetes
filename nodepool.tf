@@ -61,7 +61,8 @@ locals {
         taint
       )],
       count           = np.count,
-      placement_group = np.placement_group
+      placement_group = np.placement_group,
+      subnet_id       = np.subnet_id
     }
   ]
 

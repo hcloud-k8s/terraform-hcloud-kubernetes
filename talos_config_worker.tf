@@ -40,7 +40,7 @@ locals {
 }
 
 data "talos_machine_configuration" "worker" {
-  for_each = { for node in hcloud_server.worker : node.name => node }
+  for_each = toset([for node in hcloud_server.worker : node.name])
 
   talos_version      = var.talos_version
   cluster_name       = var.cluster_name
