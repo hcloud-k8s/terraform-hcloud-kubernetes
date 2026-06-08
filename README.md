@@ -188,7 +188,8 @@ module "kubernetes" {
     { name = "control", type = "cpx22", location = "nbg1", count = 3 }
   ]
   worker_nodepools = [
-    { name = "worker", type = "cpx22", location = "nbg1", count = 3 }
+    { name = "worker", type = "cpx22", location = "nbg1", count = 3 },
+    { name = "segmented-pool", type = "cpx22", location = "fsn1", count = 1, subnet_id = 0 } # Useful for VPC segmentation or migrating existing pools
   ]
 }
 ```
@@ -760,14 +761,23 @@ Topology-aware routing in ingress-nginx can optionally be enabled by setting the
 <details>
 <summary><b>Network Segmentation</b></summary>
 
-By default, this module calculates optimal subnets based on the provided network CIDR (`network_ipv4_cidr`). The network is segmented automatically as follows:
+By default, this module calculates optimal subnets based on the provided network CIDR (`network_ipv4_cidr`). The network is segmented automatically as follows (example using the default `10.0.0.0/16`):
 
-- **1st Quarter**: Reserved for other uses such as classic VMs.
+- **1st Quarter**: Reserved for other uses such as classic VMs (`10.0.0.0/18`)
 - **2nd Quarter**:
-  - **1st Half**: Allocated for Node Subnets (`network_node_ipv4_cidr`)
-  - **2nd Half**: Allocated for Service IPs (`network_service_ipv4_cidr`)
+  - **1st Half**: Allocated for Node subnets (`10.0.64.0/19` - `network_node_ipv4_cidr`)
+    - **1st Half**: Allocated for internal special purpose subnets (`10.0.64.0/20` - `network_reserved_ipv4_cidr`)
+      - `10.0.64.0/25`: Control Plane Nodes
+      - `10.0.64.128/25`: Load Balancer
+      - `10.0.65.0 - 10.0.79.255`: Reserved (Worker Node fixed subnets)
+    - **2nd Half**: Allocated for Worker Nodes (`10.0.80.0/20` - `network_worker_nodes_ipv4_cidr`)
+      - **1st Half**: Allocated for internal Worker Nodes (`10.0.80.0/21`)
+        - `10.0.80.0/25`: Shared Worker Nodes subnet
+        - `10.0.80.128/25`: Shared Cluster Autoscaler subnet
+      - **2nd Half**: Allocated for external (vSwitch) Worker Nodes (`10.0.88.0/21`)
+  - **2nd Half**: Allocated for Service IPs (`10.0.96.0/19` - `network_service_ipv4_cidr`)
 - **3rd and 4th Quarters**:
-  - **Full Span**: Allocated for Pod Subnets (`network_pod_ipv4_cidr`)
+  - **Full Span**: Allocated for Pod Subnets (`10.0.128.0/17` - `network_pod_ipv4_cidr`) with a default `/24` per node
 
 Each Kubernetes node requires a `/24` subnet within `network_pod_ipv4_cidr`. To support this configuration, the optimal node subnet size (`network_node_ipv4_subnet_mask_size`) is calculated using the formula:<br>
 32 - (24 - subnet_mask_size(`network_pod_ipv4_cidr`)).
@@ -799,7 +809,27 @@ Here is a table with more example calculations:
 | **10.0.0.0/19** | /28 (16 IPs)     | 10.0.8.0/22  (64) | 10.0.12.0/22 (1024) | 10.0.16.0/20 (16)   |
 | **10.0.0.0/20** | /29 (8 IPs)      | 10.0.4.0/23  (64) | 10.0.6.0/23 (512)   | 10.0.8.0/21 (8)     |
 | **10.0.0.0/21** | /30 (4 IPs)      | 10.0.2.0/24  (64) | 10.0.3.0/24 (256)   | 10.0.4.0/22 (4)     |
- 
+
+#### Explicit Subnet Allocation (`subnet_id`)
+
+By default, all worker nodes share a single, unified node subnet. However, you can assign a fixed subnet using the `subnet_id` (0-29) variable to a specific worker nodepool. This will place its nodes into an explicitly allocated subnet from the reserved legacy range (`network_reserved_ipv4_cidr`) instead of the default shared subnet.
+
+This option is intended for backward compatibility with existing deployments or specific routing requirements.
+
+Users can declare up to 30 fixed subnets for worker node pools (using `/25` subnets in `10.0.65.0 - 10.0.79.255`). In general, this option is not recommended and should only be used when strictly necessary, such as:
+
+- Isolating traffic for specific legacy IP/CIDR firewall ACLs.
+- Maintaining IP assignments when migrating existing nodepools from older versions of this module to prevent nodes from being destroyed and recreated.
+
+> [!TIP]
+> When migrating existing worker nodepools from older versions of this module, set the `subnet_id` to match the exact 0-based index the nodepool held in your original `worker_nodepools` list. For example, the first pool in your list should get `subnet_id = 0`, the second `subnet_id = 1`, and so on.
+
+Example:
+```hcl
+worker_nodepools = [
+  { name = "isolated-pool", type = "cpx22", location = "fsn1", count = 1, subnet_id = 4 }
+]
+```
 </details>
 
 

@@ -245,7 +245,12 @@ resource "terraform_data" "upgrade_kubernetes" {
 }
 
 resource "talos_machine_configuration_apply" "control_plane" {
-  for_each = { for control_plane in hcloud_server.control_plane : control_plane.name => control_plane }
+  for_each = { for s in hcloud_server.control_plane : s.name => {
+    network      = s.network
+    ipv4_address = s.ipv4_address
+    ipv6_address = s.ipv6_address
+    }
+  }
 
   client_configuration        = talos_machine_secrets.this.client_configuration
   machine_configuration_input = data.talos_machine_configuration.control_plane[each.key].machine_configuration
@@ -297,7 +302,12 @@ resource "terraform_data" "talos_staged_configuration_reboot_control_plane" {
 }
 
 resource "talos_machine_configuration_apply" "worker" {
-  for_each = { for worker in hcloud_server.worker : worker.name => worker }
+  for_each = { for s in hcloud_server.worker : s.name => {
+    network      = s.network
+    ipv4_address = s.ipv4_address
+    ipv6_address = s.ipv6_address
+    }
+  }
 
   client_configuration        = talos_machine_secrets.this.client_configuration
   machine_configuration_input = data.talos_machine_configuration.worker[each.key].machine_configuration

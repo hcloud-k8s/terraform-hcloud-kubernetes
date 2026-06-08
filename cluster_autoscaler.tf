@@ -22,10 +22,11 @@ locals {
             arm64 = local.image_label_selector,
             amd64 = local.image_label_selector
           },
+          defaultSubnetIPRange = hcloud_network_subnet.autoscaler_shared.ip_range,
           nodeConfigs = {
             for nodepool in local.cluster_autoscaler_nodepools : "${var.cluster_name}-${nodepool.name}" => {
               cloudInit = data.talos_machine_configuration.cluster_autoscaler[nodepool.name].machine_configuration,
-              labels    = nodepool.labels
+              labels    = nodepool.labels,
               taints    = nodepool.taints
             }
           }
