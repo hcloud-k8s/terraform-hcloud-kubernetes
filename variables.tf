@@ -1713,7 +1713,7 @@ variable "metrics_server_helm_chart" {
 
 variable "metrics_server_helm_version" {
   type        = string
-  default     = "3.13.0"
+  default     = "3.13.1"
   description = "Version of the Metrics Server Helm chart to deploy."
 }
 
