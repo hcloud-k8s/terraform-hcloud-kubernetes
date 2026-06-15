@@ -1367,7 +1367,7 @@ If you'd like to support this project, please consider leaving a ⭐ on GitHub!<
 <!-- sponsors-highlighted --><a href="https://github.com/mammouth-ai"><img src="https://github.com/mammouth-ai.png" width="120px" alt="mammouth.ai" /></a>&nbsp;&nbsp;<!-- sponsors-highlighted -->
 </p>
 <p align="center">
-<!-- sponsors --><a href="https://github.com/jonakoudijs"><img src="https://github.com/jonakoudijs.png" width="80px" alt="Jona Koudijs" /></a>&nbsp;&nbsp;<a href="https://liberapay.com/devXY"><img src="https://seccdn.libravatar.org/avatar/b6dddcd2f3a8097b0f1e148d14ebd1c4?s=160&amp;d=404&amp;=1" width="80px" alt="devXY" /></a>&nbsp;&nbsp;<!-- sponsors -->
+<!-- sponsors --><a href="https://github.com/jonakoudijs"><img src="https://github.com/jonakoudijs.png" width="80px" alt="Jona Koudijs" /></a>&nbsp;&nbsp;<a href="https://liberapay.com/devXY"><img src="https://seccdn.libravatar.org/avatar/b6dddcd2f3a8097b0f1e148d14ebd1c4?s=160&amp;d=404&amp;=1" width="80px" alt="devXY" /></a>&nbsp;&nbsp;<a href="https://github.com/paperclipinc"><img src="https://github.com/paperclipinc.png" width="80px" alt="Paperclip.inc" /></a>&nbsp;&nbsp;<!-- sponsors -->
 </p>
 
 Your sponsorship supports the ongoing development, improvement, and maintenance of this project 🙏
