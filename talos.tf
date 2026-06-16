@@ -245,12 +245,17 @@ resource "terraform_data" "upgrade_kubernetes" {
 }
 
 resource "talos_machine_configuration_apply" "control_plane" {
-  for_each = { for control_plane in hcloud_server.control_plane : control_plane.name => control_plane }
+  for_each = {
+    for name, node in hcloud_server.control_plane : name => {
+      endpoint     = var.cluster_access == "private" ? tolist(node.network)[0].ip : coalesce(node.ipv4_address, node.ipv6_address)
+      private_ipv4 = tolist(node.network)[0].ip
+    }
+  }
 
   client_configuration        = talos_machine_secrets.this.client_configuration
   machine_configuration_input = data.talos_machine_configuration.control_plane[each.key].machine_configuration
-  endpoint                    = var.cluster_access == "private" ? tolist(each.value.network)[0].ip : coalesce(each.value.ipv4_address, each.value.ipv6_address)
-  node                        = tolist(each.value.network)[0].ip
+  endpoint                    = each.value.endpoint
+  node                        = each.value.private_ipv4
   apply_mode                  = var.talos_machine_configuration_apply_mode
 
   depends_on = [
@@ -297,12 +302,17 @@ resource "terraform_data" "talos_staged_configuration_reboot_control_plane" {
 }
 
 resource "talos_machine_configuration_apply" "worker" {
-  for_each = { for worker in hcloud_server.worker : worker.name => worker }
+  for_each = {
+    for name, node in hcloud_server.worker : name => {
+      endpoint     = var.cluster_access == "private" ? tolist(node.network)[0].ip : coalesce(node.ipv4_address, node.ipv6_address)
+      private_ipv4 = tolist(node.network)[0].ip
+    }
+  }
 
   client_configuration        = talos_machine_secrets.this.client_configuration
   machine_configuration_input = data.talos_machine_configuration.worker[each.key].machine_configuration
-  endpoint                    = var.cluster_access == "private" ? tolist(each.value.network)[0].ip : coalesce(each.value.ipv4_address, each.value.ipv6_address)
-  node                        = tolist(each.value.network)[0].ip
+  endpoint                    = each.value.endpoint
+  node                        = each.value.private_ipv4
   apply_mode                  = var.talos_machine_configuration_apply_mode
 
   depends_on = [

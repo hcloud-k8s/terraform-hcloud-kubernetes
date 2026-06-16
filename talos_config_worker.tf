@@ -1,7 +1,7 @@
 locals {
   # Worker Config
   worker_talos_config_patches = {
-    for node in hcloud_server.worker : node.name => [
+    for name, node in hcloud_server.worker : name => [
       {
         machine = {
           nodeLabels = merge(
@@ -32,7 +32,7 @@ locals {
       {
         apiVersion = "v1alpha1"
         kind       = "HostnameConfig"
-        hostname   = node.name
+        hostname   = name
         auto       = "off"
       }
     ]
@@ -40,7 +40,7 @@ locals {
 }
 
 data "talos_machine_configuration" "worker" {
-  for_each = { for node in hcloud_server.worker : node.name => node }
+  for_each = toset(keys(hcloud_server.worker))
 
   talos_version      = var.talos_version
   cluster_name       = var.cluster_name

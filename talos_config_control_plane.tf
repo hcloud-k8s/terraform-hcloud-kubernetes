@@ -41,7 +41,7 @@ locals {
 
   # Control Plane Config
   control_plane_talos_config_patches = {
-    for node in hcloud_server.control_plane : node.name => concat(
+    for name, node in hcloud_server.control_plane : name => concat(
       [
         {
           machine = {
@@ -147,7 +147,7 @@ locals {
         {
           apiVersion = "v1alpha1"
           kind       = "HostnameConfig"
-          hostname   = node.name
+          hostname   = name
           auto       = "off"
         }
       ],
@@ -170,7 +170,7 @@ locals {
 }
 
 data "talos_machine_configuration" "control_plane" {
-  for_each = { for node in hcloud_server.control_plane : node.name => node }
+  for_each = toset(keys(hcloud_server.control_plane))
 
   talos_version      = var.talos_version
   cluster_name       = var.cluster_name
