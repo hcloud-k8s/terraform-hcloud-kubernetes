@@ -28,17 +28,17 @@
       "minimumReleaseAge": "14 days"
     },
     {
-      "description": "Disable Cluster Autoscaler Helm chart updates",
+      "description": "Keep Cluster Autoscaler Helm chart on the current supported line",
       "matchDatasources": [
         "helm"
       ],
       "matchPackageNames": [
         "cluster-autoscaler"
       ],
-      "enabled": false
+      "allowedVersions": "<9.54.0"
     },
     {
-      "description": "Kubernetes — block minor/major updates",
+      "description": "Kubernetes — require dashboard approval and do not skip minor streams",
       "matchDatasources": [
         "github-tags"
       ],
@@ -50,7 +50,8 @@
         "minor",
         "major"
       ],
-      "enabled": false
+      "dependencyDashboardApproval": true,
+      "separateMultipleMinor": true
     },
     {
       "description": "Skip X.Y.0 releases",
