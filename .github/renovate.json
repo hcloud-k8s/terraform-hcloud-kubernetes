@@ -38,7 +38,18 @@
       "allowedVersions": "<9.54.0"
     },
     {
-      "description": "Kubernetes — require dashboard approval and do not skip minor streams",
+      "description": "Kubernetes — only allow current and next minor stream",
+      "matchDatasources": [
+        "github-tags"
+      ],
+      "matchDepNames": [
+        "kubernetes/kubernetes",
+        "kubernetes/autoscaler"
+      ],
+      "allowedVersions": "<{{major}}.{{add minor 2}}.0"
+    },
+    {
+      "description": "Kubernetes — require dashboard approval for minor/major updates",
       "matchDatasources": [
         "github-tags"
       ],
@@ -50,8 +61,7 @@
         "minor",
         "major"
       ],
-      "dependencyDashboardApproval": true,
-      "separateMultipleMinor": true
+      "dependencyDashboardApproval": true
     },
     {
       "description": "Skip X.Y.0 releases",
