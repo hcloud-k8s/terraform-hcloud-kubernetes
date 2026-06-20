@@ -1301,7 +1301,7 @@ The table below lists the **minimum required versions** of each component to sup
 
 | Kubernetes | Hcloud CCM  | Hcloud CSI  |   Longhorn   |    Cilium     | Ingress NGINX | Cert Manager  |
 | :--------: | :---------: | :---------: | :----------: | :-----------: | :-----------: | :-----------: |
-|  **1.36**  | ≥&nbsp;1.31 | ≥&nbsp;2.21 | ≥&nbsp;1.12  | ≥&nbsp;(1.20) |       -       | (≥&nbsp;1.21) |
+|  **1.36**  | ≥&nbsp;1.31 | ≥&nbsp;2.21 | ≥&nbsp;1.12  | (≥&nbsp;1.20) |       -       | (≥&nbsp;1.21) |
 |  **1.35**  | ≥&nbsp;1.30 | ≥&nbsp;2.19 | ≥&nbsp;1.11  | ≥&nbsp;1.19.2 |  ≥&nbsp;4.15  |  ≥&nbsp;1.19  |
 |  **1.34**  | ≥&nbsp;1.27 | ≥&nbsp;2.18 | ≥&nbsp;1.11  |  ≥&nbsp;1.19  |  ≥&nbsp;4.14  |  ≥&nbsp;1.19  |
 |  **1.33**  | ≥&nbsp;1.26 | ≥&nbsp;2.14 | ≥&nbsp;1.8.2 |  ≥&nbsp;1.18  |  ≥&nbsp;4.13  |  ≥&nbsp;1.18  |
