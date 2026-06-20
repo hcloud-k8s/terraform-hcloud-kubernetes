@@ -779,6 +779,8 @@ With the default `10.0.0.0/16` network CIDR (`network_ipv4_cidr`), the following
 - **Pod Subnet Size**: `/24` (Max. 256 Pods per Node)
 - **Pod Subnets**: `10.0.128.0/17` (Max. 128 Nodes, each with `/24`)
 
+The shared worker subnet and the shared Cluster Autoscaler subnet are created by default. Worker and Cluster Autoscaler node pools use their shared subnets unless they pin a legacy node subnet with `subnet = "10.0.65.0/25"`. Treat pinned subnet values as immutable after the node pool has been created.
+
 Please consider the following Hetzner Cloud limits:
 - Up to **100 servers** can be attached to a network.
 - Up to **100 routes** can be created per network.
@@ -787,7 +789,7 @@ Please consider the following Hetzner Cloud limits:
 
 A `/16` Network CIDR is sufficient to fully utilize Hetzner Cloud's scaling capabilities. It supports:
 - Up to 100 nodes, each with its own `/24` Pod subnet route.
-- Configuration of up to 50 nodepools, one nodepool per subnet, each with at least one placement group.
+- Configuration of up to 50 nodepools, each with at least one placement group.
 
 
 Here is a table with more example calculations:

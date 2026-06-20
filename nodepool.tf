@@ -61,6 +61,7 @@ locals {
         taint
       )],
       count           = np.count,
+      subnet          = np.subnet,
       placement_group = np.placement_group
     }
   ]
@@ -79,8 +80,9 @@ locals {
         "^(?P<key>[^=:]+)=?(?P<value>[^=:]*?):(?P<effect>.+)$",
         taint
       )],
-      min = np.min,
-      max = np.max
+      subnet = np.subnet,
+      min    = np.min,
+      max    = np.max
     }
   ]
 

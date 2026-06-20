@@ -371,6 +371,7 @@ variable "worker_nodepools" {
     annotations     = optional(map(string), {})
     taints          = optional(list(string), [])
     count           = optional(number, 1)
+    subnet          = optional(string)
     rdns            = optional(string)
     rdns_ipv4       = optional(string)
     rdns_ipv6       = optional(string)
@@ -406,6 +407,22 @@ variable "worker_nodepools" {
       for np in var.worker_nodepools : length(var.cluster_name) + length(np.name) <= 56
     ])
     error_message = "The combined length of the cluster name and any Worker nodepool name must not exceed 56 characters."
+  }
+
+  validation {
+    condition = length([
+      for np in var.worker_nodepools : np.subnet if np.subnet != null
+      ]) == length(distinct([
+        for np in var.worker_nodepools : np.subnet if np.subnet != null
+    ]))
+    error_message = "Worker nodepool subnets must be unique."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.worker_nodepools : np.subnet == null || contains(local.network_pinned_worker_ipv4_cidrs, np.subnet)
+    ])
+    error_message = "Worker nodepool subnet must be one of the calculated pinned worker subnets."
   }
 
   validation {
@@ -476,6 +493,7 @@ variable "cluster_autoscaler_nodepools" {
     labels      = optional(map(string), {})
     annotations = optional(map(string), {})
     taints      = optional(list(string), [])
+    subnet      = optional(string)
     min         = optional(number, 0)
     max         = number
   }))
@@ -492,6 +510,31 @@ variable "cluster_autoscaler_nodepools" {
       for np in var.cluster_autoscaler_nodepools : np.max >= coalesce(np.min, 0)
     ])
     error_message = "Max size of a nodepool must be greater than or equal to its Min size."
+  }
+
+  validation {
+    condition = length([
+      for np in var.cluster_autoscaler_nodepools : np.subnet if np.subnet != null
+      ]) == length(distinct([
+        for np in var.cluster_autoscaler_nodepools : np.subnet if np.subnet != null
+    ]))
+    error_message = "Cluster Autoscaler nodepool subnets must be unique."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.cluster_autoscaler_nodepools : np.subnet == null || contains(local.network_pinned_worker_ipv4_cidrs, np.subnet)
+    ])
+    error_message = "Cluster Autoscaler nodepool subnet must be one of the calculated pinned worker subnets."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.cluster_autoscaler_nodepools : np.subnet == null || !contains([
+        for worker_nodepool in var.worker_nodepools : worker_nodepool.subnet
+      ], np.subnet)
+    ])
+    error_message = "Cluster Autoscaler nodepool subnets must not be used by Worker nodepools."
   }
 
   validation {

@@ -22,12 +22,16 @@ locals {
             arm64 = local.image_label_selector,
             amd64 = local.image_label_selector
           },
+          defaultSubnetIPRange = hcloud_network_subnet.cluster_autoscaler_shared.ip_range,
           nodeConfigs = {
-            for nodepool in local.cluster_autoscaler_nodepools : "${var.cluster_name}-${nodepool.name}" => {
-              cloudInit = data.talos_machine_configuration.cluster_autoscaler[nodepool.name].machine_configuration,
-              labels    = nodepool.labels
-              taints    = nodepool.taints
-            }
+            for nodepool in local.cluster_autoscaler_nodepools : "${var.cluster_name}-${nodepool.name}" => merge(
+              {
+                cloudInit = data.talos_machine_configuration.cluster_autoscaler[nodepool.name].machine_configuration,
+                labels    = nodepool.labels
+                taints    = nodepool.taints
+              },
+              nodepool.subnet == null ? {} : { subnetIPRange = hcloud_network_subnet.cluster_autoscaler[nodepool.name].ip_range }
+            )
           }
         }
       ))
@@ -107,7 +111,7 @@ data "helm_template" "cluster_autoscaler" {
         HCLOUD_SSH_KEY                 = tostring(hcloud_ssh_key.this.id)
         HCLOUD_PUBLIC_IPV4             = tostring(var.talos_public_ipv4_enabled)
         HCLOUD_PUBLIC_IPV6             = tostring(var.talos_public_ipv6_enabled)
-        HCLOUD_NETWORK                 = tostring(hcloud_network_subnet.autoscaler.network_id)
+        HCLOUD_NETWORK                 = tostring(hcloud_network_subnet.cluster_autoscaler_shared.network_id)
       }
       extraEnvSecrets = {
         HCLOUD_TOKEN = {
