@@ -91,8 +91,9 @@ talos_upgrade_k8s() {
       sq = sprintf("%c", 39)
       us = sprintf("%c", 31)
 
-      secret_re              = "\\.[Ss]ecrets?/"
-      allowed_secret_keys_re = "^(apiVersion|kind|name|namespace|type)$"
+      secret_re               = "(^|[[:space:]/.])([[:alnum:]_.-]+\\.)?[Ss]ecret/"
+      payload_secret_keys_re  = "^(data|stringData)$"
+      allowed_secret_keys_re  = "^(apiVersion|kind|metadata|type|immutable)$"
 
       # Build talosctl command and append exit-code marker line
       run = "talosctl upgrade-k8s"
@@ -118,8 +119,9 @@ talos_upgrade_k8s() {
 %{ endif ~}
       run = run " ; printf " sq "\\037RC=%d\\n" sq " $?"
 
-      in_secret  = 0
-      drop_block = 0
+      in_secret      = 0
+      redact_section = 0
+      drop_block     = 0
 
       while ((run | getline line) > 0) {
         # Exit code passthrough
@@ -132,22 +134,31 @@ talos_upgrade_k8s() {
         if (drop_block) {
           t = line
           sub(/^[-+ ]/, "", t)
-          if (indent(t) > block_indent) continue
+          if (t ~ /^[[:space:]]*$/ || indent(t) > block_indent) continue
           drop_block = 0
         }
 
-        # Detect Secret context from talosctl progress lines
-        if (line ~ /^[[:space:]]*>[[:space:]]*processing[[:space:]]+manifest/) {
-          in_secret = (line ~ secret_re)
+        # Detect Secret context from talosctl progress/status lines
+        if (line ~ /^[[:space:]]*[<>][[:space:]]*[[:alpha:]_-]+[[:space:]]+/) {
+          in_secret      = (line ~ secret_re)
+          redact_section = in_secret
           out(line)
           continue
         }
 
         # Detect Secret context from unified diff headers
-        if (line ~ /^[[:space:]]*(---[[:space:]]+a\/|\+\+\+[[:space:]]+b\/)/) {
-          if (line ~ secret_re) {
-            in_secret = 1
+        if (line ~ /^[[:space:]]*(---|[+][+][+])[[:space:]]+/) {
+          if (line !~ /[[:space:]]\/dev\/null([[:space:]]|$)/) {
+            in_secret = (line ~ secret_re)
           }
+          redact_section = in_secret
+          out(line)
+          continue
+        }
+
+        # Reset YAML section state on new diff hunks
+        if (line ~ /^[[:space:]]*@@[[:space:]]/) {
+          redact_section = in_secret
           out(line)
           continue
         }
@@ -177,6 +188,25 @@ talos_upgrade_k8s() {
         value = substr(parse_line, colon_pos + 1)
         sub(/^[[:space:]]+/, "", value)
 
+        # Track top-level Secret sections
+        if (indent(yaml_line) == 0) {
+          if (key ~ payload_secret_keys_re) {
+            redact_section = 1
+          } else if (key ~ allowed_secret_keys_re) {
+            redact_section = 0
+          } else {
+            redact_section = 1
+          }
+
+          if (redact_section && value != "") {
+            out(redact(line))
+          } else {
+            out(line)
+          }
+
+          continue
+        }
+
         # No value on this line
         if (value == "") {
           out(line)
@@ -184,19 +214,18 @@ talos_upgrade_k8s() {
         }
 
         # Block scalar header
-        if (value ~ /^[|>]/) {
+        if (redact_section && value ~ /^[|>]/) {
           out(redact(line))
           drop_block   = 1
           block_indent = indent(yaml_line)
           continue
         }
 
-        # Redact non-allowed keys
-        if (key ~ allowed_secret_keys_re) {
-          out(line)
-        } else {
+        # Redact unsafe Secret section values
+        if (redact_section) {
           out(redact(line))
-          continue
+        } else {
+          out(line)
         }
       }
 
