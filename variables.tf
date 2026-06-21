@@ -479,6 +479,12 @@ variable "cluster_autoscaler_helm_values" {
   description = "Custom Helm values for the Cluster Autoscaler chart deployment. These values will merge with and will override the default values provided by the Cluster Autoscaler Helm chart."
 }
 
+variable "cluster_autoscaler_enabled" {
+  type        = bool
+  default     = false
+  description = "Enables the Cluster Autoscaler deployment."
+}
+
 variable "cluster_autoscaler_image_tag" {
   type        = string
   default     = "v1.34.3"
@@ -499,6 +505,11 @@ variable "cluster_autoscaler_nodepools" {
   }))
   default     = []
   description = "Defines configuration settings for Autoscaler node pools within the cluster."
+
+  validation {
+    condition     = var.cluster_autoscaler_enabled || length(var.cluster_autoscaler_nodepools) == 0
+    error_message = "cluster_autoscaler_enabled must be true when cluster_autoscaler_nodepools are configured."
+  }
 
   validation {
     condition     = length(var.cluster_autoscaler_nodepools) == length(distinct([for np in var.cluster_autoscaler_nodepools : np.name]))
@@ -943,10 +954,10 @@ variable "talos_backup_version" {
   description = "Specifies the version of Talos Backup to be used in generated machine configurations."
 }
 
-variable "talos_backup_s3_enabled" {
+variable "talos_backup_enabled" {
   type        = bool
   default     = true
-  description = "Enable Talos etcd S3 backup cronjob."
+  description = "Enable Talos Backup cronjob."
 }
 
 variable "talos_backup_s3_hcloud_url" {

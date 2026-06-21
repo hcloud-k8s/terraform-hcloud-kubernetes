@@ -30,7 +30,7 @@ data "helm_template" "longhorn" {
     yamlencode({
       defaultSettings = {
         allowCollectingLonghornUsageMetrics = false
-        kubernetesClusterAutoscalerEnabled  = local.cluster_autoscaler_enabled
+        kubernetesClusterAutoscalerEnabled  = var.cluster_autoscaler_enabled
         upgradeChecker                      = false
       }
       networkPolicies = {

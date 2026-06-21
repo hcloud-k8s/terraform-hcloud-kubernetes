@@ -339,6 +339,8 @@ The Cluster Autoscaler dynamically adjusts the number of nodes in a Kubernetes c
 Example `kubernetes.tf` snippet:
 ```hcl
 # Configuration for cluster autoscaler node pools
+cluster_autoscaler_enabled = true
+
 cluster_autoscaler_nodepools = [
   {
     name     = "autoscaler"
@@ -375,6 +377,72 @@ cluster_autoscaler_discovery_enabled = true
 Please note that errors may occur if a node pool has been scaled down recently, as Talos caches absent nodes for up to [30 minutes](https://www.talos.dev/latest/introduction/troubleshooting/#removed-members-are-still-present). You can pause automatic scaling by stopping the Cluster Autoscaler pods:
 ```sh
 kubectl -n kube-system scale deployment cluster-autoscaler-hetzner-cluster-autoscaler --replicas=0
+```
+
+</details>
+
+
+<!-- Components -->
+<details>
+<summary><b>Components</b></summary>
+
+The module installs a curated set of Kubernetes components through Talos manifests and reconciles them during the normal module lifecycle.
+
+#### Core Components
+
+| Component                                | Variable                 | Default |
+| ---------------------------------------- | ------------------------ | ------- |
+| Cilium Container Network Interface (CNI) | `cilium_enabled`         | `true`  |
+| Hcloud Cloud Controller Manager (CCM)    | `hcloud_ccm_enabled`     | `true`  |
+| Hcloud Container Storage Interface (CSI) | `hcloud_csi_enabled`     | `true`  |
+| Metrics Server                           | `metrics_server_enabled` | `true`  |
+| Talos Backup                             | `talos_backup_enabled`   | `true`  |
+| Talos Cloud Controller Manager (CCM)     | `talos_ccm_enabled`      | `true`  |
+
+
+#### Optional Components
+
+| Component                    | Variable                               | Default |
+| ---------------------------- | -------------------------------------- | ------- |
+| Cert Manager                 | `cert_manager_enabled`                 | `false` |
+| Cert Manager Hetzner Webhook | `cert_manager_webhook_hetzner_enabled` | `false` |
+| Cilium Gateway API           | `cilium_gateway_api_enabled`           | `false` |
+| Cluster Autoscaler           | `cluster_autoscaler_enabled`           | `false` |
+| Ingress NGINX (deprecated)   | `ingress_nginx_enabled`                | `false` |
+| Longhorn                     | `longhorn_enabled`                     | `false` |
+
+
+#### Custom Resource Definitions
+
+| Component                | Variable                           | Default |
+| ------------------------ | ---------------------------------- | ------- |
+| Gateway API CRDs         | `gateway_api_crds_enabled`         | `true`  |
+| Prometheus Operator CRDs | `prometheus_operator_crds_enabled` | `true`  |
+
+
+#### Additional Manifests
+
+Extra manifests can be added alongside the built-in components:
+
+```hcl
+talos_extra_remote_manifests = [
+  "https://example.com/extra-remote-manifest.yaml"
+]
+
+talos_extra_inline_manifests = [
+  {
+    name = "test-manifest"
+    contents = <<-EOF
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: test-secret
+      data:
+        secret: dGVzdA==
+    EOF
+  }
+]
 ```
 
 </details>
@@ -936,90 +1004,6 @@ talos_backup_schedule = "0 * * * *"
 ```
 
 To recover from a snapshot, please refer to the Talos Disaster Recovery section in the [Documentation](https://www.talos.dev/latest/advanced/disaster-recovery/#recovery).
-</details>
-
-
-<!-- Talos Bootstrap Manifests -->
-<details>
-<summary><b>Talos Bootstrap Manifests</b></summary>
-
-### Component Deployment Control
-
-During cluster provisioning, each component manifest is applied using Talos’s bootstrap manifests feature. Components are upgraded as part of the normal lifecycle of this module.
-You can enable or disable component deployment using the variables below:
-
-```hcl
-# Core Components (enabled by default)
-cilium_enabled                     = true
-talos_backup_s3_enabled            = true
-talos_ccm_enabled                  = true
-talos_coredns_enabled              = true
-hcloud_ccm_enabled                 = true
-hcloud_csi_enabled                 = true
-metrics_server_enabled             = true
-prometheus_operator_crds_enabled   = true
-
-# Additional Components (disabled by default)
-cert_manager_enabled                 = true
-cert_manager_webhook_hetzner_enabled = true
-ingress_nginx_enabled                = true
-longhorn_enabled                     = true
-
-# Enable etcd backup by defining one of these variables:
-talos_backup_s3_endpoint    = "https://..."
-talos_backup_s3_hcloud_url  = "https://<bucket>.<location>.your-objectstorage.com"
-
-# Cluster Autoscaler: Enabled when node pools are defined
-cluster_autoscaler_nodepools = [
-  {
-    name     = "autoscaler"
-    type     = "cpx22"
-    location = "nbg1"
-    min      = 0
-    max      = 6
-    labels   = {
-      "autoscaler-node" = "true"
-    }
-    taints   = [
-      "autoscaler-node=true:NoExecute"
-    ]
-  }
-]
-```
-
-> **Note:** Disabling a component **does not delete** its existing resources.
-> This is documented in the [Talos documentation](https://www.talos.dev/latest/kubernetes-guides/upgrading-kubernetes/#automated-kubernetes-upgrade).
-> You must remove deployed resources manually after disabling a component in the manifests.
-
----
-
-### Adding Additional Manifests
-
-Besides the default components, you can add extra bootstrap manifests as follows:
-
-```hcl
-# Extra remote manifests (URLs fetched at apply time)
-talos_extra_remote_manifests = [
-  "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml"
-]
-
-# Extra inline manifests (defined directly)
-talos_extra_inline_manifests = [
-  {
-    name = "test-manifest"
-    contents = <<-EOF
-      ---
-      apiVersion: v1
-      kind: Secret
-      metadata:
-        name: test-secret
-      data:
-        secret: dGVzdA==
-    EOF
-  }
-]
-```
- 
 </details>
 
 

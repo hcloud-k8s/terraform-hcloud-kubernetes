@@ -97,7 +97,7 @@ locals {
     }
   }
 
-  talos_backup_manifest = var.talos_backup_s3_enabled ? {
+  talos_backup_manifest = var.talos_backup_enabled ? {
     name     = "talos-backup"
     contents = <<-EOF
       ${yamlencode(local.talos_backup_service_account)}

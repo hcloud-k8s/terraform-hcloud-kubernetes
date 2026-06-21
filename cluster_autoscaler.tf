@@ -1,13 +1,12 @@
 locals {
-  cluster_autoscaler_enabled             = length(local.cluster_autoscaler_nodepools) > 0
   cluster_autoscaler_hostname_pattern    = "^${var.cluster_name}-(${join("|", distinct([for np in local.cluster_autoscaler_nodepools : np.name]))})-[0-9a-f]+$"
-  cluster_autoscaler_node_label_selector = local.cluster_autoscaler_enabled ? "hcloud/node-group in (${join(",", [for np in local.cluster_autoscaler_nodepools : "${var.cluster_name}-${np.name}"])})" : ""
+  cluster_autoscaler_node_label_selector = var.cluster_autoscaler_enabled ? "hcloud/node-group in (${join(",", [for np in local.cluster_autoscaler_nodepools : "${var.cluster_name}-${np.name}"])})" : ""
 
   cluster_autoscaler_release_name       = "cluster-autoscaler"
   cluster_autoscaler_cloud_provider     = "hetzner"
   cluster_autoscaler_config_secret_name = "${local.cluster_autoscaler_release_name}-${local.cluster_autoscaler_cloud_provider}-config"
 
-  cluster_autoscaler_cluster_config_manifest = local.cluster_autoscaler_enabled ? {
+  cluster_autoscaler_cluster_config_manifest = var.cluster_autoscaler_enabled ? {
     apiVersion = "v1"
     kind       = "Secret"
     type       = "Opaque"
@@ -40,7 +39,7 @@ locals {
 }
 
 data "helm_template" "cluster_autoscaler" {
-  count = local.cluster_autoscaler_enabled ? 1 : 0
+  count = var.cluster_autoscaler_enabled ? 1 : 0
 
   name      = local.cluster_autoscaler_release_name
   namespace = "kube-system"
@@ -136,7 +135,7 @@ data "helm_template" "cluster_autoscaler" {
 }
 
 locals {
-  cluster_autoscaler_manifest = local.cluster_autoscaler_enabled ? {
+  cluster_autoscaler_manifest = var.cluster_autoscaler_enabled ? {
     name     = "cluster-autoscaler"
     contents = <<-EOF
       ${data.helm_template.cluster_autoscaler[0].manifest}
