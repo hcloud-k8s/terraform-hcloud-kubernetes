@@ -29,6 +29,20 @@ locals {
     ]
   )
 
+  # Version-agnostic selector for *consuming* the ARM64 snapshot (node boot and
+  # cluster-autoscaler). It deliberately omits talos_version/schematic so node
+  # creation always resolves to the newest existing cluster ARM64 snapshot, even
+  # when a version bump means no version-matched snapshot exists yet (e.g. the
+  # rebuild was skipped because Hetzner has no CAX capacity). The version-pinned
+  # `image_label_selector` above is kept for the build guard, which must still
+  # detect "no snapshot for the current version -> build needed".
+  image_label_selector_arm64_any = join(",",
+    [
+      "os=talos",
+      "cluster=${var.cluster_name}",
+    ]
+  )
+
   talos_image_extentions_longhorn = [
     "siderolabs/iscsi-tools",
     "siderolabs/util-linux-tools"
@@ -174,7 +188,7 @@ resource "terraform_data" "arm64_image" {
     command = join(" ",
       [
         "${length(data.hcloud_images.arm64[0].images) > 0} ||",
-        "packer build -force",
+        "bash build_softfail.sh -force",
         "-var 'cluster_name=${var.cluster_name}'",
         "-var 'server_type=${var.packer_arm64_builder.server_type}'",
         "-var 'server_location=${var.packer_arm64_builder.server_location}'",
@@ -208,7 +222,7 @@ data "hcloud_image" "amd64" {
 data "hcloud_image" "arm64" {
   count = local.arm64_image_required ? 1 : 0
 
-  with_selector     = local.image_label_selector
+  with_selector     = local.image_label_selector_arm64_any
   with_architecture = "arm"
   most_recent       = true
 
