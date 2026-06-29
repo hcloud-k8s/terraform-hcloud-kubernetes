@@ -487,7 +487,7 @@ variable "cluster_autoscaler_enabled" {
 
 variable "cluster_autoscaler_image_tag" {
   type        = string
-  default     = "v1.34.3"
+  default     = "v1.34.5"
   description = "Version of the Cluster Autoscaler Image."
 }
 
