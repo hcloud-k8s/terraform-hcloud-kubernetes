@@ -41,44 +41,24 @@
     {
       "description": "Kubernetes — only allow current and next minor stream",
       "matchDatasources": [
-        "github-tags"
+        "github-tags",
+        "github-releases"
       ],
       "matchDepNames": [
-        "kubernetes/kubernetes"
+        "kubernetes/kubernetes",
+        "kubernetes/autoscaler"
       ],
       "allowedVersions": "<{{major}}.{{add minor 2}}.0"
     },
     {
       "description": "Kubernetes — require dashboard approval for minor/major updates",
       "matchDatasources": [
-        "github-tags"
+        "github-tags",
+        "github-releases"
       ],
       "matchDepNames": [
-        "kubernetes/kubernetes"
-      ],
-      "matchUpdateTypes": [
-        "minor",
-        "major"
-      ],
-      "dependencyDashboardApproval": true
-    },
-    {
-      "description": "Cluster Autoscaler image — only allow current and next minor stream",
-      "matchDatasources": [
-        "docker"
-      ],
-      "matchPackageNames": [
-        "registry.k8s.io/autoscaling/cluster-autoscaler"
-      ],
-      "allowedVersions": "<{{major}}.{{add minor 2}}.0"
-    },
-    {
-      "description": "Cluster Autoscaler image — require dashboard approval for minor/major updates",
-      "matchDatasources": [
-        "docker"
-      ],
-      "matchPackageNames": [
-        "registry.k8s.io/autoscaling/cluster-autoscaler"
+        "kubernetes/kubernetes",
+        "kubernetes/autoscaler"
       ],
       "matchUpdateTypes": [
         "minor",
@@ -133,10 +113,9 @@
       "matchStrings": [
         "variable\\s+\"cluster_autoscaler_image_tag\"\\s*{[^}]*\\s*default\\s*=\\s*\"v(?<currentValue>\\d+\\.\\d+\\.\\d+)\"[^}]*}"
       ],
-      "datasourceTemplate": "docker",
-      "depNameTemplate": "registry.k8s.io/autoscaling/cluster-autoscaler",
-      "versioningTemplate": "semver",
-      "extractVersionTemplate": "^v(?<version>\\d+\\.\\d+\\.\\d+)$"
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "kubernetes/autoscaler",
+      "extractVersionTemplate": "^cluster-autoscaler-(?<version>\\d+\\.\\d+\\.\\d+)$"
     },
     {
       "description": "Update Packer Dependencies from GitHub",
