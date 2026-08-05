@@ -589,6 +589,17 @@ resource "terraform_data" "bare_metal_server" {
           wipe_disk "$disk"
         done
 
+        # Stop any existing RAID arrays on these disks
+        mdadm --stop /dev/md0 2>/dev/null || true
+        mdadm --stop /dev/md127 2>/dev/null || true
+        mdadm --stop /dev/md/0 2>/dev/null || true
+        # Remove stale superblocks from previous RAID attempts
+        for disk in "$${install_disks[@]}"; do
+          mdadm --zero-superblock "$disk" 2>/dev/null || true
+        done
+        udevadm settle
+        sleep 2
+
         # Create RAID 1 array across all eligible disks
         mdadm --create /dev/md0 \
           --level=1 \
