@@ -8,6 +8,7 @@ locals {
         number       = server.number,
         private_ipv4 = server.private_ipv4,
         install_disk = server.install_disk,
+        raid_level   = np.raid_level,
       }
     }
   ]...) : {}
@@ -450,7 +451,7 @@ resource "terraform_data" "bare_metal_server" {
       bash <<'SCRIPT'
       set -euo pipefail
 
-      for command in blkdiscard blockdev cat dd find grep head lsblk partprobe readlink sed sgdisk shutdown sort sync udevadm wget wipefs zstd; do
+      for command in blkdiscard blockdev cat dd find grep head lsblk mdadm partprobe readlink sed sgdisk shutdown sort sync udevadm wget wipefs zstd; do
         if ! command -v "$command" >/dev/null 2>&1; then
           printf 'ERROR: required command not found: %s\n' "$command" >&2
           exit 1
@@ -540,6 +541,7 @@ resource "terraform_data" "bare_metal_server" {
       }
 
       configured_install_disk_id='${each.value.install_disk != null ? each.value.install_disk : ""}'
+      raid_level='${each.value.raid_level}'
       mapfile -t install_disks < <(get_install_disks)
 
       if [ "$${#install_disks[@]}" -eq 0 ]; then
@@ -574,20 +576,67 @@ resource "terraform_data" "bare_metal_server" {
         exit 1
       fi
 
-      for disk in "$${install_disks[@]}"; do
-        if [ "$disk" = "$install_disk" ]; then
-          print_disk "select" "$disk"
-        else
-          print_disk "deboot" "$disk"
+      # ============================================================
+      # RAID 1 support: create mdadm array across all eligible disks
+      # when raid_level=1 and there are 2+ disks available.
+      # ============================================================
+      raid_device=""
+      if [ "$raid_level" = "1" ] && [ "$${#install_disks[@]}" -ge 2 ]; then
+        printf 'RAID 1: creating array across %s disks\n' "$${#install_disks[@]}"
+
+        # Wipe all disks first
+        for disk in "$${install_disks[@]}"; do
+          wipe_disk "$disk"
+        done
+
+        # Create RAID 1 array across all eligible disks
+        mdadm --create /dev/md0 \
+          --level=1 \
+          --raid-devices="$${#install_disks[@]}" \
+          --run \
+          "$${install_disks[@]}"
+
+        # Wait for array to sync
+        printf 'RAID 1: waiting for array to become active\n'
+        for attempt in $(seq 1 60); do
+          array_state=$(cat /sys/block/md0/md/array_state 2>/dev/null || echo "unknown")
+          if [ "$array_state" = "active" ] || [ "$array_state" = "active-syncing" ] || [ "$array_state" = "active-degraded" ]; then
+            break
+          fi
+          printf 'RAID 1: array state=%s, waiting (%s/60)\n' "$array_state" "$attempt"
+          sleep 5
+        done
+
+        if [ "$array_state" != "active" ] && [ "$array_state" != "active-syncing" ] && [ "$array_state" != "active-degraded" ]; then
+          printf 'ERROR: RAID 1 array did not become active, state=%s\n' "$array_state" >&2
+          exit 1
         fi
-      done
 
-      for disk in "$${install_disks[@]}"; do
-        [ "$disk" != "$install_disk" ] || continue
-        wipe_disk "$disk"
-      done
+        raid_device="/dev/md0"
+        install_disk="$raid_device"
 
-      wipe_disk "$install_disk"
+        printf 'RAID 1: array active at %s\n' "$raid_device"
+
+        for disk in "$${install_disks[@]}"; do
+          print_disk "raid-member" "$disk"
+        done
+      else
+        # No RAID — original single-disk flow
+        for disk in "$${install_disks[@]}"; do
+          if [ "$disk" = "$install_disk" ]; then
+            print_disk "select" "$disk"
+          else
+            print_disk "deboot" "$disk"
+          fi
+        done
+
+        for disk in "$${install_disks[@]}"; do
+          [ "$disk" != "$install_disk" ] || continue
+          wipe_disk "$disk"
+        done
+
+        wipe_disk "$install_disk"
+      fi
 
       printf 'write disk=%s talos=%s schematic=%s\n' \
         "$install_disk" \
