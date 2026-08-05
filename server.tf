@@ -577,12 +577,21 @@ resource "terraform_data" "bare_metal_server" {
       fi
 
       # ============================================================
-      # RAID 1 support: create mdadm array across all eligible disks
-      # when raid_mode="raid1" and there are 2+ disks available.
+      # RAID 1 support: write Talos to all disks, then create
+      # a RAID 1 from the EPHEMERAL partitions for data redundancy.
+      #
+      # The BIOS/UEFI can only boot from a physical disk, not from
+      # a Linux md RAID device. So we write the Talos image (which
+      # includes the bootloader) to ALL physical disks, then create
+      # a RAID 1 from the last partition (EPHEMERAL) on each disk.
+      # This way:
+      # - BIOS boots from any physical disk (bootloader is on all)
+      # - The EPHEMERAL partition (container/Mimir/Kafka data) is mirrored
+      # - If one disk fails, the other disk can still boot and serve data
       # ============================================================
       raid_device=""
       if [ "$raid_mode" = "raid1" ] && [ "$${#install_disks[@]}" -ge 2 ]; then
-        printf 'RAID 1: creating array across %s disks\n' "$${#install_disks[@]}"
+        printf 'RAID 1: writing Talos to %s disks, then mirroring EPHEMERAL\n' "$${#install_disks[@]}"
 
         # Wipe all disks first
         for disk in "$${install_disks[@]}"; do
@@ -592,7 +601,6 @@ resource "terraform_data" "bare_metal_server" {
         # Stop any existing RAID arrays on these disks
         mdadm --stop /dev/md0 2>/dev/null || true
         mdadm --stop /dev/md127 2>/dev/null || true
-        mdadm --stop /dev/md/0 2>/dev/null || true
         # Remove stale superblocks from previous RAID attempts
         for disk in "$${install_disks[@]}"; do
           mdadm --zero-superblock "$disk" 2>/dev/null || true
@@ -600,16 +608,64 @@ resource "terraform_data" "bare_metal_server" {
         udevadm settle
         sleep 2
 
-        # Create RAID 1 array across all eligible disks
+        # Write Talos image to ALL physical disks (bootloader on each)
+        for disk in "$${install_disks[@]}"; do
+          printf 'RAID 1: writing Talos to %s\n' "$disk"
+          wget \
+            --quiet \
+            --timeout=20 \
+            --waitretry=5 \
+            --tries=5 \
+            --retry-connrefused \
+            --inet4-only \
+            --output-document=- \
+            "${local.talos_metal_disk_image_urls[each.key]}" \
+          | zstd -dc \
+          | dd of="$disk" bs=1M iflag=fullblock oflag=direct conv=fsync status=none
+          sync
+          partprobe "$disk" >/dev/null 2>&1 || blockdev --rereadpt "$disk" >/dev/null 2>&1
+          udevadm settle
+        done
+
+        # Identify the EPHEMERAL partition (last partition on each disk)
+        # Talos disk layout: partition 1=BOOT, 2=META, 3=BOOT(grub), 4=META, 5=EPHEMERAL
+        # The EPHEMERAL partition is the last one and is the largest
+        ephemeral_parts=""
+        for disk in "$${install_disks[@]}"; do
+          # Find the last partition on this disk
+          last_part=$(lsblk -ln -o NAME "$disk" 2>/dev/null | tail -1)
+          if [ -n "$last_part" ] && [ -b "/dev/$last_part" ]; then
+            part_size=$(lsblk -ln -o SIZE "/dev/$last_part" 2>/dev/null)
+            printf 'RAID 1: %s -> /dev/%s (size=%s)\n' "$disk" "$last_part" "$part_size"
+            if [ -n "$ephemeral_parts" ]; then
+              ephemeral_parts="$ephemeral_parts /dev/$last_part"
+            else
+              ephemeral_parts="/dev/$last_part"
+            fi
+          fi
+        done
+
+        if [ -z "$ephemeral_parts" ]; then
+          printf 'ERROR: RAID 1: could not find EPHEMERAL partitions\n' >&2
+          exit 1
+        fi
+
+        # Wipe the EPHEMERAL partitions and create RAID 1 from them
+        for part in $ephemeral_parts; do
+          wipefs --all --force "$part" >/dev/null 2>&1
+          mdadm --zero-superblock "$part" 2>/dev/null || true
+        done
+        udevadm settle
+        sleep 1
+
+        printf 'RAID 1: creating array from: %s\n' "$ephemeral_parts"
         mdadm --create /dev/md0 \
           --level=1 \
           --raid-devices="$${#install_disks[@]}" \
           --run \
-          "$${install_disks[@]}"
+          $ephemeral_parts
 
-        # Wait briefly for array device to appear, then proceed immediately.
-        # The initial resync runs in the background and does not block writes.
-        # It will continue after Talos boots — the array is usable during resync.
+        # Wait briefly for array device to appear
         printf 'RAID 1: waiting for /dev/md0 to appear\n'
         for attempt in $(seq 1 30); do
           if [ -b /dev/md0 ]; then
@@ -628,15 +684,17 @@ resource "terraform_data" "bare_metal_server" {
         fi
 
         raid_device="/dev/md0"
-        install_disk="$raid_device"
-
-        printf 'RAID 1: array active at %s\n' "$raid_device"
 
         for disk in "$${install_disks[@]}"; do
-          print_disk "raid-member" "$disk"
+          print_disk "raid-boot" "$disk"
         done
+        printf 'RAID 1: EPHEMERAL mirrored at /dev/md0\n'
+
+        # Skip the single-disk write below — we already wrote to all disks
+        skip_write=true
       else
         # No RAID — original single-disk flow
+        skip_write=false
         for disk in "$${install_disks[@]}"; do
           if [ "$disk" = "$install_disk" ]; then
             print_disk "select" "$disk"
@@ -653,24 +711,26 @@ resource "terraform_data" "bare_metal_server" {
         wipe_disk "$install_disk"
       fi
 
-      printf 'write disk=%s talos=%s schematic=%s\n' \
-        "$install_disk" \
-        '${var.talos_version}' \
-        '${local.talos_metal_schematic_ids[each.key]}'
+      if [ "$skip_write" != "true" ]; then
+        printf 'write disk=%s talos=%s schematic=%s\n' \
+          "$install_disk" \
+          '${var.talos_version}' \
+          '${local.talos_metal_schematic_ids[each.key]}'
 
-      wget \
-        --quiet \
-        --timeout=20 \
-        --waitretry=5 \
-        --tries=5 \
-        --retry-connrefused \
-        --inet4-only \
-        --output-document=- \
-        "${local.talos_metal_disk_image_urls[each.key]}" \
-      | zstd -dc \
-      | dd of="$install_disk" bs=1M iflag=fullblock oflag=direct conv=fsync status=none
+        wget \
+          --quiet \
+          --timeout=20 \
+          --waitretry=5 \
+          --tries=5 \
+          --retry-connrefused \
+          --inet4-only \
+          --output-document=- \
+          "${local.talos_metal_disk_image_urls[each.key]}" \
+        | zstd -dc \
+        | dd of="$install_disk" bs=1M iflag=fullblock oflag=direct conv=fsync status=none
 
-      sync
+        sync
+      fi
 
       printf 'done disk=%s talos=%s\n' "$install_disk" '${var.talos_version}'
       printf '%s\n' 'reboot scheduled'
