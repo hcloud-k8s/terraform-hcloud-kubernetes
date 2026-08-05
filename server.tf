@@ -577,26 +577,21 @@ resource "terraform_data" "bare_metal_server" {
       fi
 
       # ============================================================
-      # RAID 1 support: write Talos to all disks, then create
-      # a RAID 1 from the EPHEMERAL partitions for data redundancy.
+      # RAID 1 support: write Talos to all physical disks so the
+      # system can boot from any disk. The EPHEMERAL partition
+      # (where container data lives) is created by Talos on first
+      # boot, so we can't create a RAID array during provisioning.
       #
-      # The BIOS/UEFI can only boot from a physical disk, not from
-      # a Linux md RAID device. So we write the Talos image (which
-      # includes the bootloader) to ALL physical disks, then create
-      # a RAID 1 from the last partition (EPHEMERAL) on each disk.
-      # This way:
-      # - BIOS boots from any physical disk (bootloader is on all)
-      # - The EPHEMERAL partition (container/Mimir/Kafka data) is mirrored
-      # - If one disk fails, the other disk can still boot and serve data
+      # Data redundancy is provided by:
+      # 1. Boot redundancy: bootloader on all physical disks
+      # 2. Application replication: Mimir RF=2, Kafka RF=3 across nodes
+      #
+      # For RAID 1 of the EPHEMERAL partition, configure it post-boot
+      # via Talos machine config patches (mdadm assemble + mount).
       # ============================================================
       raid_device=""
       if [ "$raid_mode" = "raid1" ] && [ "$${#install_disks[@]}" -ge 2 ]; then
-        printf 'RAID 1: writing Talos to %s disks, then mirroring EPHEMERAL\n' "$${#install_disks[@]}"
-
-        # Wipe all disks first
-        for disk in "$${install_disks[@]}"; do
-          wipe_disk "$disk"
-        done
+        printf 'RAID 1: writing Talos to %s disks for boot redundancy\n' "$${#install_disks[@]}"
 
         # Stop any existing RAID arrays on these disks
         mdadm --stop /dev/md0 2>/dev/null || true
@@ -604,6 +599,11 @@ resource "terraform_data" "bare_metal_server" {
         # Remove stale superblocks from previous RAID attempts
         for disk in "$${install_disks[@]}"; do
           mdadm --zero-superblock "$disk" 2>/dev/null || true
+        done
+
+        # Wipe all disks
+        for disk in "$${install_disks[@]}"; do
+          wipe_disk "$disk"
         done
         udevadm settle
         sleep 2
@@ -627,68 +627,10 @@ resource "terraform_data" "bare_metal_server" {
           udevadm settle
         done
 
-        # Identify the EPHEMERAL partition (last partition on each disk)
-        # Talos disk layout: partition 1=BOOT, 2=META, 3=BOOT(grub), 4=META, 5=EPHEMERAL
-        # The EPHEMERAL partition is the last one and is the largest
-        ephemeral_parts=""
-        for disk in "$${install_disks[@]}"; do
-          # Find the last partition on this disk
-          last_part=$(lsblk -ln -o NAME "$disk" 2>/dev/null | tail -1)
-          if [ -n "$last_part" ] && [ -b "/dev/$last_part" ]; then
-            part_size=$(lsblk -ln -o SIZE "/dev/$last_part" 2>/dev/null)
-            printf 'RAID 1: %s -> /dev/%s (size=%s)\n' "$disk" "$last_part" "$part_size"
-            if [ -n "$ephemeral_parts" ]; then
-              ephemeral_parts="$ephemeral_parts /dev/$last_part"
-            else
-              ephemeral_parts="/dev/$last_part"
-            fi
-          fi
-        done
-
-        if [ -z "$ephemeral_parts" ]; then
-          printf 'ERROR: RAID 1: could not find EPHEMERAL partitions\n' >&2
-          exit 1
-        fi
-
-        # Wipe the EPHEMERAL partitions and create RAID 1 from them
-        for part in $ephemeral_parts; do
-          wipefs --all --force "$part" >/dev/null 2>&1
-          mdadm --zero-superblock "$part" 2>/dev/null || true
-        done
-        udevadm settle
-        sleep 1
-
-        printf 'RAID 1: creating array from: %s\n' "$ephemeral_parts"
-        mdadm --create /dev/md0 \
-          --level=1 \
-          --raid-devices="$${#install_disks[@]}" \
-          --run \
-          $ephemeral_parts
-
-        # Wait briefly for array device to appear
-        printf 'RAID 1: waiting for /dev/md0 to appear\n'
-        for attempt in $(seq 1 30); do
-          if [ -b /dev/md0 ]; then
-            array_state=$(cat /sys/block/md0/md/array_state 2>/dev/null || echo "unknown")
-            printf 'RAID 1: array ready at /dev/md0, state=%s (resync continues in background)\n' "$array_state"
-            break
-          fi
-          printf 'RAID 1: waiting for /dev/md0 (%s/30)\n' "$attempt"
-          sleep 2
-        done
-
-        if [ ! -b /dev/md0 ]; then
-          printf 'ERROR: RAID 1 array /dev/md0 did not appear\n' >&2
-          cat /proc/mdstat 2>/dev/null >&2
-          exit 1
-        fi
-
-        raid_device="/dev/md0"
-
         for disk in "$${install_disks[@]}"; do
           print_disk "raid-boot" "$disk"
         done
-        printf 'RAID 1: EPHEMERAL mirrored at /dev/md0\n'
+        printf 'RAID 1: boot redundancy enabled (Talos on all disks)\n'
 
         # Skip the single-disk write below — we already wrote to all disks
         skip_write=true
