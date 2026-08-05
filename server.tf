@@ -596,19 +596,29 @@ resource "terraform_data" "bare_metal_server" {
           --run \
           "$${install_disks[@]}"
 
-        # Wait for array to sync
-        printf 'RAID 1: waiting for array to become active\n'
+        # Wait for array to be ready
+        printf 'RAID 1: waiting for array to become ready\n'
         for attempt in $(seq 1 60); do
           array_state=$(cat /sys/block/md0/md/array_state 2>/dev/null || echo "unknown")
-          if [ "$array_state" = "active" ] || [ "$array_state" = "active-syncing" ] || [ "$array_state" = "active-degraded" ]; then
-            break
-          fi
+          case "$array_state" in
+            active|active-syncing|active-degraded|clean)
+              # "clean" means the array exists but needs to be assembled
+              if [ "$array_state" = "clean" ]; then
+                mdadm --assemble /dev/md0 2>/dev/null || true
+                array_state=$(cat /sys/block/md0/md/array_state 2>/dev/null || echo "unknown")
+              fi
+              if [ "$array_state" = "active" ] || [ "$array_state" = "active-syncing" ] || [ "$array_state" = "active-degraded" ]; then
+                break
+              fi
+              ;;
+          esac
           printf 'RAID 1: array state=%s, waiting (%s/60)\n' "$array_state" "$attempt"
           sleep 5
         done
 
         if [ "$array_state" != "active" ] && [ "$array_state" != "active-syncing" ] && [ "$array_state" != "active-degraded" ]; then
           printf 'ERROR: RAID 1 array did not become active, state=%s\n' "$array_state" >&2
+          cat /proc/mdstat 2>/dev/null >&2
           exit 1
         fi
 
