@@ -474,10 +474,10 @@ variable "bare_metal_nodepools" {
     rdns        = optional(string)
     rdns_ipv4   = optional(string)
     rdns_ipv6   = optional(string)
-    raid_level  = optional(number, 0)
+    raid_mode   = optional(string, "none")
   }))
   default     = []
-  description = "Defines configuration settings for Hetzner bare metal Worker node pools. Set raid_level to 1 for RAID 1 (mirroring) across all eligible disks."
+  description = "Defines configuration settings for Hetzner bare metal Worker node pools. Set raid_mode to \"raid1\" for RAID 1 (mirroring) across all eligible disks."
 
   validation {
     condition     = length(var.bare_metal_nodepools) == length(distinct([for np in var.bare_metal_nodepools : np.name]))
@@ -498,16 +498,16 @@ variable "bare_metal_nodepools" {
 
   validation {
     condition = alltrue([
-      for np in var.bare_metal_nodepools : contains([0, 1], np.raid_level)
+      for np in var.bare_metal_nodepools : contains(["none", "raid1"], np.raid_mode)
     ])
-    error_message = "Bare metal nodepool raid_level must be 0 (no RAID) or 1 (RAID 1 mirroring)."
+    error_message = "Bare metal nodepool raid_mode must be \"none\" (no RAID) or \"raid1\" (RAID 1 mirroring)."
   }
 
   validation {
     condition = alltrue([
-      for np in var.bare_metal_nodepools : np.raid_level == 0 || length(np.servers) > 0
+      for np in var.bare_metal_nodepools : np.raid_mode == "none" || length(np.servers) > 0
     ])
-    error_message = "Bare metal nodepool with raid_level=1 must have at least one server."
+    error_message = "Bare metal nodepool with raid_mode != \"none\" must have at least one server."
   }
 
   validation {

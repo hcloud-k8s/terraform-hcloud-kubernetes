@@ -71,7 +71,7 @@ locals {
       name         = np.name,
       architecture = np.architecture,
       servers      = np.servers,
-      raid_level   = np.raid_level,
+      raid_mode    = np.raid_mode,
       rdns_ipv4 = var.talos_public_ipv4_enabled ? (
         np.rdns_ipv4 != null ? np.rdns_ipv4 :
         np.rdns != null ? np.rdns :

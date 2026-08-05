@@ -8,7 +8,7 @@ locals {
         number       = server.number,
         private_ipv4 = server.private_ipv4,
         install_disk = server.install_disk,
-        raid_level   = np.raid_level,
+        raid_mode    = np.raid_mode,
       }
     }
   ]...) : {}
@@ -541,7 +541,7 @@ resource "terraform_data" "bare_metal_server" {
       }
 
       configured_install_disk_id='${each.value.install_disk != null ? each.value.install_disk : ""}'
-      raid_level='${each.value.raid_level}'
+      raid_mode='${each.value.raid_mode}'
       mapfile -t install_disks < <(get_install_disks)
 
       if [ "$${#install_disks[@]}" -eq 0 ]; then
@@ -578,10 +578,10 @@ resource "terraform_data" "bare_metal_server" {
 
       # ============================================================
       # RAID 1 support: create mdadm array across all eligible disks
-      # when raid_level=1 and there are 2+ disks available.
+      # when raid_mode="raid1" and there are 2+ disks available.
       # ============================================================
       raid_device=""
-      if [ "$raid_level" = "1" ] && [ "$${#install_disks[@]}" -ge 2 ]; then
+      if [ "$raid_mode" = "raid1" ] && [ "$${#install_disks[@]}" -ge 2 ]; then
         printf 'RAID 1: creating array across %s disks\n' "$${#install_disks[@]}"
 
         # Wipe all disks first
