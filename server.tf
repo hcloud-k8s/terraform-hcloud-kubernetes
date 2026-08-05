@@ -607,32 +607,25 @@ resource "terraform_data" "bare_metal_server" {
           --run \
           "$${install_disks[@]}"
 
-        # Wait for array to be ready
-        printf 'RAID 1: waiting for array to become ready\n'
-        for attempt in $(seq 1 60); do
-          array_state=$(cat /sys/block/md0/md/array_state 2>/dev/null || echo "unknown")
-          # Array states: active, active-syncing, active-degraded, clean, clean-resyncing
-          # "clean" and "clean-resyncing" are valid — the array exists and is working
-          case "$array_state" in
-            active|active-syncing|active-degraded|clean|clean,*|*,resyncing)
-              printf 'RAID 1: array ready, state=%s\n' "$array_state"
-              break
-              ;;
-          esac
-          printf 'RAID 1: array state=%s, waiting (%s/60)\n' "$array_state" "$attempt"
-          sleep 5
+        # Wait briefly for array device to appear, then proceed immediately.
+        # The initial resync runs in the background and does not block writes.
+        # It will continue after Talos boots — the array is usable during resync.
+        printf 'RAID 1: waiting for /dev/md0 to appear\n'
+        for attempt in $(seq 1 30); do
+          if [ -b /dev/md0 ]; then
+            array_state=$(cat /sys/block/md0/md/array_state 2>/dev/null || echo "unknown")
+            printf 'RAID 1: array ready at /dev/md0, state=%s (resync continues in background)\n' "$array_state"
+            break
+          fi
+          printf 'RAID 1: waiting for /dev/md0 (%s/30)\n' "$attempt"
+          sleep 2
         done
 
-        # Accept any active or clean state — both mean the array is usable
-        case "$array_state" in
-          active|active-syncing|active-degraded|clean|clean,*|*,resyncing)
-            ;;
-          *)
-            printf 'ERROR: RAID 1 array did not become ready, state=%s\n' "$array_state" >&2
-            cat /proc/mdstat 2>/dev/null >&2
-            exit 1
-            ;;
-        esac
+        if [ ! -b /dev/md0 ]; then
+          printf 'ERROR: RAID 1 array /dev/md0 did not appear\n' >&2
+          cat /proc/mdstat 2>/dev/null >&2
+          exit 1
+        fi
 
         raid_device="/dev/md0"
         install_disk="$raid_device"
