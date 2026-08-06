@@ -13,6 +13,7 @@ locals {
   talos_inline_manifests = concat(
     [local.hcloud_secret_manifest],
     local.cilium_manifest != null ? [local.cilium_manifest] : [],
+    local.talos_ccm_manifest != null ? [local.talos_ccm_manifest] : [],
     local.hcloud_ccm_manifest != null ? [local.hcloud_ccm_manifest] : [],
     local.hcloud_csi_manifest != null ? [local.hcloud_csi_manifest] : [],
     local.talos_backup_manifest != null ? [local.talos_backup_manifest] : [],
@@ -27,9 +28,6 @@ locals {
     local.oidc_manifest != null ? [local.oidc_manifest] : []
   )
   talos_manifests = concat(
-    var.talos_ccm_enabled ? [
-      "https://raw.githubusercontent.com/siderolabs/talos-cloud-controller-manager/${var.talos_ccm_version}/docs/deploy/cloud-controller-manager-daemonset.yml"
-    ] : [],
     var.prometheus_operator_crds_enabled ? [
       "https://github.com/prometheus-operator/prometheus-operator/releases/download/${var.prometheus_operator_crds_version}/stripped-down-crds.yaml"
     ] : [],
@@ -182,7 +180,7 @@ data "talos_machine_configuration" "control_plane" {
   examples           = false
 
   config_patches = concat(
-    [for patch in local.talos_base_config_patches : yamlencode(patch)],
+    [for patch in local.talos_cloud_config_patches : yamlencode(patch)],
     [for patch in local.control_plane_talos_config_patches[each.key] : yamlencode(patch)],
     [for patch in var.control_plane_config_patches : yamlencode(patch)]
   )

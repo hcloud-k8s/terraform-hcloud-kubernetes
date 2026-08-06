@@ -10,7 +10,7 @@ for host in "$@"; do
     machine_config=$(mktemp)
     cleanup() { rm -f "$machine_config"; }
     trap 'cleanup' EXIT
-    trap 'cleanup; exit 1' HUP INT TERM QUIT PIPE
+    trap 'exit 1' HUP INT TERM QUIT PIPE
 
     printf '%s\n' "Applying machine configuration to node: $host"
 

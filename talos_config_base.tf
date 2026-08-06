@@ -79,8 +79,26 @@ locals {
     }
   }
 
+  # CRI Configuration
+  talos_cri_config_patches = !var.talos_cri_discard_unpacked_layers ? [
+    {
+      machine = {
+        files = [
+          {
+            path    = "/etc/cri/conf.d/20-customization.part"
+            op      = "create"
+            content = <<-EOT
+              [plugins."io.containerd.cri.v1.images"]
+                discard_unpacked_layers = false
+            EOT
+          }
+        ]
+      }
+    }
+  ] : []
+
   # Public Network Link Config
-  talos_public_link_config_patches = local.talos_public_interface_enabled ? [
+  talos_cloud_public_link_config_patches = local.talos_public_interface_enabled ? [
     {
       apiVersion = "v1alpha1"
       kind       = "LinkConfig"
@@ -89,7 +107,7 @@ locals {
     }
   ] : []
 
-  talos_public_dhcp_config_patches = local.talos_public_interface_enabled && var.talos_public_ipv4_enabled ? [
+  talos_cloud_public_dhcp_config_patches = local.talos_public_interface_enabled && var.talos_public_ipv4_enabled ? [
     {
       apiVersion = "v1alpha1"
       kind       = "DHCPv4Config"
@@ -98,17 +116,18 @@ locals {
   ] : []
 
   # Private Network Link Config
-  talos_private_link_config_patches = [
+  talos_cloud_private_link_config_patches = [
     {
       apiVersion = "v1alpha1"
       kind       = "LinkConfig"
       name       = local.talos_private_link_name
       up         = true
+      mtu        = local.bare_metal_enabled ? 1400 : 1450
       routes     = local.talos_extra_routes
     }
   ]
 
-  talos_private_dhcp_config_patches = [
+  talos_cloud_private_dhcp_config_patches = [
     {
       apiVersion = "v1alpha1"
       kind       = "DHCPv4Config"
@@ -208,21 +227,17 @@ locals {
 
   # Boot-time machine configuration
   talos_user_data_config_patches = concat(
-    [for p in concat(local.talos_private_link_config_patches, local.talos_private_dhcp_config_patches) : p if var.cluster_access == "private"],
+    [for p in concat(local.talos_cloud_private_link_config_patches, local.talos_cloud_private_dhcp_config_patches) : p if var.cluster_access == "private"],
   )
 
   talos_user_data = length(local.talos_user_data_config_patches) > 0 ? join("\n---\n", [
     for patch in local.talos_user_data_config_patches : yamlencode(patch)
   ]) : null
 
-  # Talos Base Config
-  talos_base_config_patches = concat(
+  # Talos Common Config
+  talos_common_config_patches = concat(
     [{
       machine = {
-        install = {
-          image           = local.talos_installer_image_url
-          extraKernelArgs = var.talos_extra_kernel_args
-        }
         certSANs = local.talos_certificate_san
         kubelet = merge(
           {
@@ -284,14 +299,29 @@ locals {
         discovery = local.talos_discovery
       }
     }],
-    local.talos_public_link_config_patches,
-    local.talos_public_dhcp_config_patches,
-    local.talos_private_link_config_patches,
-    local.talos_private_dhcp_config_patches,
     local.talos_system_volume_config_patches,
     [local.talos_resolver_config_patch],
     [local.talos_time_sync_config_patch],
     local.talos_static_host_config_patches,
-    local.talos_trusted_certs_config_patches
+    local.talos_trusted_certs_config_patches,
+    local.talos_cri_config_patches
+  )
+
+  talos_cloud_config_patches = concat(
+    local.talos_common_config_patches,
+    [
+      {
+        machine = {
+          install = {
+            image           = local.talos_cloud_installer_image_url
+            extraKernelArgs = var.talos_extra_kernel_args
+          }
+        }
+      }
+    ],
+    local.talos_cloud_public_link_config_patches,
+    local.talos_cloud_public_dhcp_config_patches,
+    local.talos_cloud_private_link_config_patches,
+    local.talos_cloud_private_dhcp_config_patches
   )
 }

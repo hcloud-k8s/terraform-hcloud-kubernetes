@@ -1,3 +1,18 @@
+locals {
+  bare_metal_servers = length(local.bare_metal_nodepools) > 0 ? merge([
+    for np in local.bare_metal_nodepools : {
+      for server in np.servers : "${var.cluster_name}-${np.name}-${server.number}" => {
+        nodepool     = np.name,
+        name         = "${var.cluster_name}-${np.name}-${server.number}",
+        architecture = np.architecture,
+        number       = server.number,
+        private_ipv4 = server.private_ipv4,
+        install_disk = server.install_disk,
+      }
+    }
+  ]...) : {}
+}
+
 resource "hcloud_server" "control_plane" {
   for_each = merge([
     for np_index in range(length(local.control_plane_nodepools)) : {
@@ -14,7 +29,7 @@ resource "hcloud_server" "control_plane" {
   ]...)
 
   name                     = each.key
-  image                    = substr(each.value.server_type, 0, 3) == "cax" ? data.hcloud_image.arm64[0].id : data.hcloud_image.amd64[0].id
+  image                    = can(regex(local.cloud_arm64_server_type_pattern, each.value.server_type)) ? data.hcloud_image.arm64[0].id : data.hcloud_image.amd64[0].id
   server_type              = each.value.server_type
   location                 = each.value.location
   placement_group_id       = each.value.placement_group_id
@@ -79,7 +94,7 @@ resource "hcloud_server" "worker" {
   ]...)
 
   name                     = each.key
-  image                    = substr(each.value.server_type, 0, 3) == "cax" ? data.hcloud_image.arm64[0].id : data.hcloud_image.amd64[0].id
+  image                    = can(regex(local.cloud_arm64_server_type_pattern, each.value.server_type)) ? data.hcloud_image.arm64[0].id : data.hcloud_image.amd64[0].id
   server_type              = each.value.server_type
   location                 = each.value.location
   placement_group_id       = each.value.placement_group_id
@@ -126,6 +141,494 @@ resource "hcloud_server" "worker" {
       ssh_keys
     ]
   }
+}
+
+data "external" "bare_metal_server" {
+  for_each = local.bare_metal_enabled ? local.bare_metal_servers : {}
+
+  program = [
+    "sh", "-c", <<-EOT
+      set -eu
+
+      input=$(cat)
+      robot_api_url=$(printf '%s' "$input" | jq -r '.robot_api_url')
+      robot_user=$(printf '%s' "$input" | jq -r '.robot_user')
+      robot_password=$(printf '%s' "$input" | jq -r '.robot_password')
+      server_number=$(printf '%s' "$input" | jq -r '.server_number')
+
+      response_file=$(mktemp)
+      cleanup() { rm -f "$response_file"; }
+      trap 'cleanup' EXIT
+      trap 'exit 1' HUP INT TERM QUIT PIPE
+
+      status=$(curl -sS -o "$response_file" -w '%%{http_code}' \
+        -u "$robot_user:$robot_password" \
+        "$robot_api_url/server/$server_number" || true)
+
+      case "$status" in
+        200)
+          ;;
+        *)
+          printf 'Unexpected Robot API status while looking up bare metal server %s: %s\n' "$server_number" "$status" >&2
+          exit 1
+          ;;
+      esac
+
+      server_ipv4=$(jq -r '.server.server_ip // ""' "$response_file")
+      server_ipv6_net=$(jq -r '.server.server_ipv6_net // ""' "$response_file")
+      rescue_supported=$(jq -r '.server.rescue // false' "$response_file")
+      reset_supported=$(jq -r '.server.reset // false' "$response_file")
+
+      if [ -z "$server_ipv4" ]; then
+        printf 'Could not determine public IP for bare metal server %s\n' "$server_number" >&2
+        exit 1
+      fi
+
+      if [ "$server_ipv6_net" = "null" ]; then
+        server_ipv6_net=""
+      fi
+
+      status=$(curl -sS -o "$response_file" -w '%%{http_code}' \
+        -u "$robot_user:$robot_password" \
+        "$robot_api_url/ip/$server_ipv4" || true)
+
+      case "$status" in
+        200)
+          ;;
+        *)
+          printf 'Unexpected Robot API status while looking up public IP %s for bare metal server %s: %s\n' "$server_ipv4" "$server_number" "$status" >&2
+          exit 1
+          ;;
+      esac
+
+      server_ipv4_gateway=$(jq -r '.ip.gateway // ""' "$response_file")
+      server_ipv4_mask=$(jq -r '.ip.mask // ""' "$response_file")
+
+      if [ -z "$server_ipv4_gateway" ] || [ -z "$server_ipv4_mask" ]; then
+        printf 'Could not determine public IP gateway or mask for bare metal server %s\n' "$server_number" >&2
+        exit 1
+      fi
+
+      jq -n \
+        --arg server_ipv4 "$server_ipv4" \
+        --arg server_ipv4_gateway "$server_ipv4_gateway" \
+        --arg server_ipv4_mask "$server_ipv4_mask" \
+        --arg server_ipv6_net "$server_ipv6_net" \
+        --arg rescue_supported "$rescue_supported" \
+        --arg reset_supported "$reset_supported" \
+        '{server_ipv4: $server_ipv4, server_ipv4_gateway: $server_ipv4_gateway, server_ipv4_mask: $server_ipv4_mask, server_ipv6_net: $server_ipv6_net, rescue_supported: $rescue_supported, reset_supported: $reset_supported}'
+    EOT
+  ]
+
+  query = {
+    robot_api_url  = var.hcloud_robot_api_url
+    robot_user     = var.hcloud_robot_user
+    robot_password = var.hcloud_robot_password
+    server_number  = tostring(each.value.number)
+  }
+}
+
+locals {
+  bare_metal_server_public_network = {
+    for server_name in keys(local.bare_metal_servers) :
+    server_name => nonsensitive(data.external.bare_metal_server[server_name].result)
+  }
+
+  bare_metal_initialization_ssh_hosts = {
+    for server_name in keys(local.bare_metal_servers) : server_name => (
+      local.bare_metal_initialization_firewall_ipv6_enabled ? (
+        try(cidrhost("${local.bare_metal_server_public_network[server_name].server_ipv6_net}/64", 2), "")
+      ) :
+      local.bare_metal_server_public_network[server_name].server_ipv4
+    )
+  }
+}
+
+resource "terraform_data" "bare_metal_server_name" {
+  for_each = local.bare_metal_enabled ? local.bare_metal_servers : {}
+
+  triggers_replace = {
+    name          = each.value.name
+    server_number = each.value.number
+  }
+
+  provisioner "local-exec" {
+    quiet   = true
+    command = <<-EOT
+      set -eu
+
+      printf 'Setting Robot name for bare metal server %s to %s\n' "${self.triggers_replace.server_number}" "${self.triggers_replace.name}"
+
+      response_file=$(mktemp)
+      cleanup() { rm -f "$response_file"; }
+      trap 'cleanup' EXIT
+
+      status=$(curl -sS -o "$response_file" -w '%%{http_code}' \
+        -u "$ROBOT_USER:$ROBOT_PASSWORD" \
+        --data-urlencode "server_name=${self.triggers_replace.name}" \
+        "${var.hcloud_robot_api_url}/server/${self.triggers_replace.server_number}" || true)
+
+      case "$status" in
+        200)
+          ;;
+        *)
+          printf 'Unexpected Robot API status while setting name for bare metal server %s: %s\n' "${self.triggers_replace.server_number}" "$status" >&2
+          cat "$response_file" >&2
+          exit 1
+          ;;
+      esac
+
+      printf 'Robot name set for bare metal server %s\n' "${self.triggers_replace.server_number}"
+    EOT
+
+    environment = {
+      ROBOT_USER     = var.hcloud_robot_user
+      ROBOT_PASSWORD = nonsensitive(var.hcloud_robot_password)
+    }
+  }
+}
+
+resource "terraform_data" "bare_metal_server" {
+  for_each = local.bare_metal_enabled ? local.bare_metal_servers : {}
+
+  lifecycle {
+    precondition {
+      condition     = local.bare_metal_server_public_network[each.key].rescue_supported == "true"
+      error_message = "Bare metal server ${each.value.number} does not support rescue mode."
+    }
+
+    precondition {
+      condition     = local.bare_metal_server_public_network[each.key].reset_supported == "true"
+      error_message = "Bare metal server ${each.value.number} does not support reset."
+    }
+
+    precondition {
+      condition     = local.bare_metal_initialization_ssh_hosts[each.key] != ""
+      error_message = "Bare metal initialization SSH host could not be determined for server ${each.value.number}."
+    }
+  }
+
+  provisioner "local-exec" {
+    quiet   = true
+    command = <<-EOT
+      set -eu
+
+      printf 'Enabling rescue mode for bare metal server %s\n' "${each.value.number}"
+
+      status=$(curl -sS -o /dev/null -w '%%{http_code}' \
+        -u "$ROBOT_USER:$ROBOT_PASSWORD" \
+        --data-urlencode "os=linux" \
+        --data-urlencode "authorized_key[]=${tls_private_key.ssh_key.public_key_fingerprint_md5}" \
+        "${var.hcloud_robot_api_url}/boot/${each.value.number}/rescue" || true)
+
+      case "$status" in
+        200|201)
+          ;;
+        *)
+          printf 'Unexpected Robot API status while enabling rescue mode for server %s: %s\n' "${each.value.number}" "$status" >&2
+          exit 1
+          ;;
+      esac
+
+      printf 'Resetting bare metal server %s to boot into rescue mode\n' "${each.value.number}"
+
+      status=$(curl -sS -o /dev/null -w '%%{http_code}' \
+        -u "$ROBOT_USER:$ROBOT_PASSWORD" \
+        --data-urlencode "type=hw" \
+        "${var.hcloud_robot_api_url}/reset/${each.value.number}" || true)
+
+      case "$status" in
+        200|201)
+          ;;
+        *)
+          printf 'Unexpected Robot API status while resetting server %s: %s\n' "${each.value.number}" "$status" >&2
+          exit 1
+          ;;
+      esac
+
+      printf 'Bare metal server %s rescue boot requested\n' "${each.value.number}"
+    EOT
+
+    environment = {
+      ROBOT_USER     = var.hcloud_robot_user
+      ROBOT_PASSWORD = nonsensitive(var.hcloud_robot_password)
+    }
+  }
+
+  provisioner "local-exec" {
+    quiet   = true
+    command = <<-EOT
+      set -eu
+
+      printf 'Opening Robot firewall for bare metal server %s\n' "${each.value.number}"
+
+      response_file=$(mktemp)
+      curl_config=$(mktemp)
+      cleanup() { rm -f "$response_file" "$curl_config"; }
+      trap 'cleanup' EXIT
+
+      printf '%s' "$ROBOT_FIREWALL_CURL_DATA" | jq -r '.[] | "data-urlencode = " + (. | @json)' > "$curl_config"
+
+      for attempt in $(seq 1 100); do
+        status=$(curl -sS -o "$response_file" -w '%%{http_code}' \
+          -u "$ROBOT_USER:$ROBOT_PASSWORD" \
+          --config "$curl_config" \
+          "${var.hcloud_robot_api_url}/firewall/${each.value.number}" || true)
+
+        case "$status" in
+          200|201|202)
+            break
+            ;;
+          409)
+            printf 'Robot firewall update for server %s is still in process, retrying (%s/100)\n' "${each.value.number}" "$attempt"
+            sleep 10
+            ;;
+          *)
+            printf 'Unexpected Robot API status while opening firewall for server %s: %s\n' "${each.value.number}" "$status" >&2
+            cat "$response_file" >&2
+            exit 1
+            ;;
+        esac
+      done
+
+      if [ "$status" != "200" ] && [ "$status" != "201" ] && [ "$status" != "202" ]; then
+        printf 'Robot firewall update for server %s did not complete after retries, last status: %s\n' "${each.value.number}" "$status" >&2
+        exit 1
+      fi
+
+      printf 'Waiting 60 seconds for Robot firewall update to apply on server %s\n' "${each.value.number}"
+      sleep 60
+
+      for attempt in $(seq 1 100); do
+        status=$(curl -sS -o "$response_file" -w '%%{http_code}' \
+          -u "$ROBOT_USER:$ROBOT_PASSWORD" \
+          "${var.hcloud_robot_api_url}/firewall/${each.value.number}" || true)
+
+        case "$status" in
+          200)
+            firewall_status=$(jq -r '.firewall.status // empty' "$response_file")
+
+            case "$firewall_status" in
+              active)
+                break
+                ;;
+              "in process")
+                printf 'Robot firewall for server %s is still in process, waiting (%s/100)\n' "${each.value.number}" "$attempt"
+                sleep 10
+                ;;
+              *)
+                printf 'Unexpected Robot firewall status for server %s: %s\n' "${each.value.number}" "$firewall_status" >&2
+                exit 1
+                ;;
+            esac
+            ;;
+          *)
+            printf 'Unexpected Robot API status while checking firewall for server %s: %s\n' "${each.value.number}" "$status" >&2
+            exit 1
+            ;;
+        esac
+      done
+
+      if [ "$firewall_status" != "active" ]; then
+        printf 'Robot firewall for server %s did not become active after retries, last status: %s\n' "${each.value.number}" "$firewall_status" >&2
+        exit 1
+      fi
+
+      printf 'Robot firewall opened for bare metal server %s\n' "${each.value.number}"
+    EOT
+
+    environment = {
+      ROBOT_FIREWALL_CURL_DATA = jsonencode(local.bare_metal_initialization_firewall_curl_data)
+      ROBOT_USER               = var.hcloud_robot_user
+      ROBOT_PASSWORD           = nonsensitive(var.hcloud_robot_password)
+    }
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      <<-EOT
+      bash <<'SCRIPT'
+      set -euo pipefail
+
+      for command in blkdiscard blockdev cat dd find grep head lsblk partprobe readlink sed sgdisk shutdown sort sync udevadm wget wipefs zstd; do
+        if ! command -v "$command" >/dev/null 2>&1; then
+          printf 'ERROR: required command not found: %s\n' "$command" >&2
+          exit 1
+        fi
+      done
+
+      has_mounts_below() {
+        lsblk -nr -o MOUNTPOINTS "$1" 2>/dev/null | grep -q '[^[:space:]]'
+      }
+
+      lsblk_field() {
+        lsblk -dn -o "$2" "$1" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/[[:space:]][[:space:]]*/ /g'
+      }
+
+      first_link() {
+        dir="$1"
+        dev="$2"
+
+        find -L "$dir" -samefile "$dev" ! -name '*-part*' -printf '%p\n' 2>/dev/null | sort | head -n1 || true
+      }
+
+      get_install_disks() {
+        udevadm settle
+
+        find /sys/block/ \
+          \( -name 'nvme[0-9]*n[0-9]' -o -name '[hvs]d[a-z]' -o -name 'xvd[a-z]' \) \
+          -printf '%f\n' \
+        | sort \
+        | while read -r name; do
+            dev="/dev/$name"
+
+            [ -b "$dev" ] || continue
+            [ "$(cat "/sys/block/$name/removable" 2>/dev/null)" = "0" ] || continue
+            [ "$(cat "/sys/block/$name/ro" 2>/dev/null)" = "0" ] || continue
+            [ "$(lsblk_field "$dev" TYPE)" = "disk" ] || continue
+            [ "$(lsblk_field "$dev" TRAN)" != "usb" ] || continue
+
+            if has_mounts_below "$dev"; then
+              printf 'skip disk=%s reason=mounted\n' "$dev" >&2
+              continue
+            fi
+
+            printf '%s\n' "$dev"
+          done
+      }
+
+      print_disk() {
+        role="$1"
+        dev="$2"
+
+        printf '%s disk=%s size="%s" model="%s" serial="%s" wwn="%s" tran="%s" by_id="%s" by_path="%s"\n' \
+          "$role" \
+          "$dev" \
+          "$(lsblk_field "$dev" SIZE)" \
+          "$(lsblk_field "$dev" MODEL)" \
+          "$(lsblk_field "$dev" SERIAL)" \
+          "$(lsblk_field "$dev" WWN)" \
+          "$(lsblk_field "$dev" TRAN)" \
+          "$(first_link /dev/disk/by-id "$dev")" \
+          "$(first_link /dev/disk/by-path "$dev")"
+      }
+
+      wipe_disk() {
+        disk="$1"
+
+        if has_mounts_below "$disk"; then
+          printf 'ERROR: refusing to wipe mounted disk=%s\n' "$disk" >&2
+          exit 1
+        fi
+
+        printf 'wipe disk=%s\n' "$disk"
+
+        wipefs --all --force "$disk" >/dev/null 2>&1
+        sgdisk --zap-all "$disk" >/dev/null 2>&1
+        blkdiscard -f "$disk" >/dev/null 2>&1 || true
+
+        dd if=/dev/zero of="$disk" bs=1M count=32 conv=fsync status=none
+
+        size_bytes="$(blockdev --getsize64 "$disk" 2>/dev/null || printf '0')"
+        if [ "$size_bytes" -gt $((64 * 1024 * 1024)) ]; then
+          seek_mib=$((size_bytes / 1024 / 1024 - 32))
+          dd if=/dev/zero of="$disk" bs=1M seek="$seek_mib" count=32 conv=fsync status=none
+        fi
+
+        partprobe "$disk" >/dev/null 2>&1 || blockdev --rereadpt "$disk" >/dev/null 2>&1
+        sync
+      }
+
+      configured_install_disk_id='${each.value.install_disk != null ? each.value.install_disk : ""}'
+      mapfile -t install_disks < <(get_install_disks)
+
+      if [ "$${#install_disks[@]}" -eq 0 ]; then
+        printf '%s\n' 'ERROR: Could not detect install disk' >&2
+        exit 1
+      fi
+
+      if [ -n "$configured_install_disk_id" ]; then
+        case "$configured_install_disk_id" in
+          */*)
+            printf 'ERROR: install_disk must be a disk ID from /dev/disk/by-id, got %s\n' "$configured_install_disk_id" >&2
+            exit 1
+            ;;
+        esac
+
+        install_disk="$(readlink -f "/dev/disk/by-id/$configured_install_disk_id" 2>/dev/null || true)"
+        if [ -z "$install_disk" ]; then
+          printf 'ERROR: configured install_disk was not found in /dev/disk/by-id: %s\n' "$configured_install_disk_id" >&2
+          exit 1
+        fi
+      else
+        install_disk="$${install_disks[0]}"
+      fi
+
+      if [ -z "$install_disk" ] || [ ! -b "$install_disk" ]; then
+        printf '%s\n' 'ERROR: Could not detect install disk' >&2
+        exit 1
+      fi
+
+      if ! printf '%s\n' "$${install_disks[@]}" | grep -Fxq "$install_disk"; then
+        printf 'ERROR: configured install disk is not an eligible install disk: %s\n' "$install_disk" >&2
+        exit 1
+      fi
+
+      for disk in "$${install_disks[@]}"; do
+        if [ "$disk" = "$install_disk" ]; then
+          print_disk "select" "$disk"
+        else
+          print_disk "deboot" "$disk"
+        fi
+      done
+
+      for disk in "$${install_disks[@]}"; do
+        [ "$disk" != "$install_disk" ] || continue
+        wipe_disk "$disk"
+      done
+
+      wipe_disk "$install_disk"
+
+      printf 'write disk=%s talos=%s schematic=%s\n' \
+        "$install_disk" \
+        '${var.talos_version}' \
+        '${local.talos_metal_schematic_ids[each.key]}'
+
+      wget \
+        --quiet \
+        --timeout=20 \
+        --waitretry=5 \
+        --tries=5 \
+        --retry-connrefused \
+        --inet4-only \
+        --output-document=- \
+        "${local.talos_metal_disk_image_urls[each.key]}" \
+      | zstd -dc \
+      | dd of="$install_disk" bs=1M iflag=fullblock oflag=direct conv=fsync status=none
+
+      sync
+
+      printf 'done disk=%s talos=%s\n' "$install_disk" '${var.talos_version}'
+      printf '%s\n' 'reboot scheduled'
+
+      shutdown -r +1
+      SCRIPT
+    EOT
+    ]
+
+    connection {
+      type        = "ssh"
+      host        = local.bare_metal_initialization_ssh_hosts[each.key]
+      user        = "root"
+      private_key = tls_private_key.ssh_key.private_key_openssh
+      timeout     = "15m"
+    }
+  }
+
+  depends_on = [
+    terraform_data.bare_metal_server_name,
+    terraform_data.robot_ssh_key
+  ]
 }
 
 resource "terraform_data" "hcloud_server_cluster_autoscaler" {
@@ -264,7 +767,9 @@ data "external" "talos_member" {
       set -eu
 
       talosconfig=$(mktemp)
-      trap 'rm -f "$talosconfig"' EXIT HUP INT TERM QUIT PIPE
+      cleanup() { rm -f "$talosconfig"; }
+      trap 'cleanup' EXIT
+      trap 'exit 1' HUP INT TERM QUIT PIPE
       jq -r '.talosconfig' > "$talosconfig"
 
       if ${local.cluster_initialized}; then

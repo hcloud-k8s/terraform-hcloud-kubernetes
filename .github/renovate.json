@@ -89,9 +89,22 @@
         "/^variables\\.tf$/"
       ],
       "matchStrings": [
-        "variable\\s+\"[^\"]*helm_repository\"\\s*{[^}]*default\\s*=\\s*\"(?<registryUrl>[^\"]+)\"[^}]*?}\\s*variable\\s+\"[^\"]*helm_chart\"\\s*{[^}]*default\\s*=\\s*\"(?<depName>[^\"]+)\"[^}]*?}\\s*variable\\s+\"[^\"]*helm_version\"\\s*{[^}]*default\\s*=\\s*\"(?<currentValue>[^\"]+)\"[^}]*?}"
+        "variable\\s+\"[^\"]*helm_repository\"\\s*{[^}]*default\\s*=\\s*\"(?<registryUrl>https?://[^\"]+)\"[^}]*?}\\s*variable\\s+\"[^\"]*helm_chart\"\\s*{[^}]*default\\s*=\\s*\"(?<depName>[^\"]+)\"[^}]*?}\\s*variable\\s+\"[^\"]*helm_version\"\\s*{[^}]*default\\s*=\\s*\"(?<currentValue>[^\"]+)\"[^}]*?}"
       ],
       "datasourceTemplate": "helm"
+    },
+    {
+      "description": "Update OCI Helm Charts used in Terraform",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^variables\\.tf$/"
+      ],
+      "matchStrings": [
+        "variable\\s+\"[^\"]*helm_repository\"\\s*{[^}]*default\\s*=\\s*\"oci://(?<registryUrl>[^\"]+)\"[^}]*?}\\s*variable\\s+\"[^\"]*helm_chart\"\\s*{[^}]*default\\s*=\\s*\"(?<chartName>[^\"]+)\"[^}]*?}\\s*variable\\s+\"[^\"]*helm_version\"\\s*{[^}]*default\\s*=\\s*\"(?<currentValue>[^\"]+)\"[^}]*?}"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "{{{registryUrl}}}/{{{chartName}}}",
+      "versioningTemplate": "semver"
     },
     {
       "description": "Update GitHub Dependencies",

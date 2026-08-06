@@ -76,6 +76,11 @@ output "worker_public_ipv6_list" {
   value       = local.worker_public_ipv6_list
 }
 
+output "hcloud_vswitch_id" {
+  description = "Hetzner Robot vSwitch ID used for bare metal private networking."
+  value       = local.hcloud_vswitch_id
+}
+
 output "cilium_encryption_info" {
   description = "Cilium traffic encryption settings, including current state and IPsec details if enabled."
   value = {

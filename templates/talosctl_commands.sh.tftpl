@@ -2,7 +2,7 @@
 talosconfig=$(mktemp)
 cleanup() { rm -f "$talosconfig"; }
 trap 'cleanup' EXIT
-trap 'cleanup; exit 1' HUP INT TERM QUIT PIPE
+trap 'exit 1' HUP INT TERM QUIT PIPE
 
 printf '%s' "$TALOSCONFIG" > "$talosconfig"
 
@@ -60,7 +60,7 @@ talos_upgrade() {
 %{ if talos_upgrade_reboot_mode != null ~}
     --reboot-mode '${talos_upgrade_reboot_mode}' \
 %{ endif ~}
-    --image '${talos_installer_image_url}' \
+    --image "$TALOS_UPGRADE_IMAGE" \
     "$@"
 }
 

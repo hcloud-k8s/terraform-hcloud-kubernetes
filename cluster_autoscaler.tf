@@ -20,8 +20,8 @@ locals {
           imagesForArch = {
             # Version-agnostic for ARM64 so autoscaled CAX nodes can still find an
             # image when no version-matched snapshot exists (CAX out of stock).
-            arm64 = local.image_label_selector_arm64_any,
-            amd64 = local.image_label_selector
+            arm64 = local.talos_image_label_selector_arm64_any,
+            amd64 = local.talos_image_label_selector
           },
           defaultSubnetIPRange = hcloud_network_subnet.cluster_autoscaler_shared.ip_range,
           nodeConfigs = {

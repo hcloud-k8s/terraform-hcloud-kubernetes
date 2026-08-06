@@ -43,7 +43,7 @@ data "talos_machine_configuration" "cluster_autoscaler" {
   examples           = false
 
   config_patches = concat(
-    [for patch in local.talos_base_config_patches : yamlencode(patch)],
+    [for patch in local.talos_cloud_config_patches : yamlencode(patch)],
     [for patch in local.autoscaler_nodepool_talos_config_patch[each.key] : yamlencode(patch)],
     [for patch in var.cluster_autoscaler_config_patches : yamlencode(patch)]
   )

@@ -50,7 +50,7 @@ build {
       <<-EOT
         set -euo pipefail
 
-        printf '%s\n' 'Zeroing disk first before writing Talos image'
+        printf '%s\n' 'Discarding disk before writing Talos image'
         blkdiscard -v /dev/sda 2>/dev/null
 
         printf '%s\n' 'Downloading Talos ${var.talos_version} (${var.talos_schematic_id}) ...'
@@ -66,7 +66,9 @@ build {
         | xz -T0 -dc \
         | dd of=/dev/sda bs=1M iflag=fullblock oflag=direct conv=fsync status=none
 
-        printf '%s\n' 'Talos ${var.talos_version} (${var.talos_schematic_id}) downloaded'
+        sync
+
+        printf '%s\n' 'Talos ${var.talos_version} (${var.talos_schematic_id}) written to /dev/sda'
       EOT
     ]
   }

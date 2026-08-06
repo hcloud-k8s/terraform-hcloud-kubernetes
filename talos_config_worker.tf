@@ -52,7 +52,7 @@ data "talos_machine_configuration" "worker" {
   examples           = false
 
   config_patches = concat(
-    [for patch in local.talos_base_config_patches : yamlencode(patch)],
+    [for patch in local.talos_cloud_config_patches : yamlencode(patch)],
     [for patch in local.worker_talos_config_patches[each.key] : yamlencode(patch)],
     [for patch in var.worker_config_patches : yamlencode(patch)]
   )

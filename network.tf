@@ -26,7 +26,7 @@ locals {
 
   network_pod_ipv4_cidr = coalesce(var.network_pod_ipv4_cidr, cidrsubnet(local.network_ipv4_cidr, 1, 1))
 
-  network_native_routing_ipv4_cidr         = coalesce(var.network_native_routing_ipv4_cidr, local.network_ipv4_cidr)
+  network_native_routing_ipv4_cidr         = coalesce(var.network_native_routing_ipv4_cidr, local.bare_metal_enabled ? local.network_pod_ipv4_cidr : local.network_ipv4_cidr)
   network_node_ipv4_cidr_skip_first_subnet = cidrhost(local.network_ipv4_cidr, 0) == cidrhost(local.network_node_ipv4_cidr, 0)
   network_ipv4_gateway                     = cidrhost(local.network_ipv4_cidr, 1)
 
@@ -56,6 +56,7 @@ locals {
   network_worker_subnet_newbits               = local.network_node_ipv4_subnet_mask_size - split("/", local.network_worker_internal_ipv4_cidr)[1]
   network_worker_shared_ipv4_cidr             = cidrsubnet(local.network_worker_internal_ipv4_cidr, local.network_worker_subnet_newbits, 0)
   network_cluster_autoscaler_shared_ipv4_cidr = cidrsubnet(local.network_worker_internal_ipv4_cidr, local.network_worker_subnet_newbits, 1)
+  network_bare_metal_shared_ipv4_cidr         = cidrsubnet(local.network_worker_external_ipv4_cidr, local.network_worker_subnet_newbits, 0)
 
   # Lists for control plane nodes
   control_plane_public_ipv4_list  = compact(distinct([for server in hcloud_server.control_plane : server.ipv4_address]))
@@ -70,6 +71,9 @@ locals {
   worker_public_ipv4_list  = compact(distinct([for server in hcloud_server.worker : server.ipv4_address]))
   worker_public_ipv6_list  = compact(distinct([for server in hcloud_server.worker : server.ipv6_address]))
   worker_private_ipv4_list = compact(distinct([for server in hcloud_server.worker : tolist(server.network)[0].ip]))
+
+  # Lists for bare metal nodes
+  bare_metal_private_ipv4_list = compact(distinct([for server in local.bare_metal_servers : server.private_ipv4]))
 
   # Lists for cluster autoscaler nodes
   cluster_autoscaler_public_ipv4_list  = compact(distinct([for server in local.talos_discovery_cluster_autoscaler : server.public_ipv4_address]))
@@ -90,9 +94,10 @@ data "hcloud_network" "this" {
 resource "hcloud_network" "this" {
   count = length(data.hcloud_network.this) > 0 ? 0 : 1
 
-  name              = var.cluster_name
-  ip_range          = local.network_ipv4_cidr
-  delete_protection = var.cluster_delete_protection
+  name                     = var.cluster_name
+  ip_range                 = local.network_ipv4_cidr
+  delete_protection        = var.cluster_delete_protection
+  expose_routes_to_vswitch = var.hcloud_network_expose_routes_to_vswitch
 
   labels = {
     cluster = var.cluster_name
@@ -156,6 +161,16 @@ resource "hcloud_network_subnet" "cluster_autoscaler" {
   type         = "cloud"
   network_zone = local.hcloud_network_zone
   ip_range     = each.value.subnet
+}
+
+resource "hcloud_network_subnet" "bare_metal_shared" {
+  count = local.bare_metal_enabled && (var.hcloud_vswitch_id != null || var.hcloud_robot_user != null) ? 1 : 0
+
+  network_id   = local.hcloud_network_id
+  type         = "vswitch"
+  network_zone = local.hcloud_network_zone
+  ip_range     = local.network_bare_metal_shared_ipv4_cidr
+  vswitch_id   = local.hcloud_vswitch_id
 }
 
 resource "hcloud_network_subnet" "autoscaler" {

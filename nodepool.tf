@@ -66,6 +66,34 @@ locals {
     }
   ]
 
+  bare_metal_nodepools = [
+    for np in var.bare_metal_nodepools : {
+      name         = np.name,
+      architecture = np.architecture,
+      servers      = np.servers,
+      rdns_ipv4 = var.talos_public_ipv4_enabled ? (
+        np.rdns_ipv4 != null ? np.rdns_ipv4 :
+        np.rdns != null ? np.rdns :
+        local.cluster_rdns_ipv4
+      ) : null,
+      rdns_ipv6 = var.talos_public_ipv6_enabled ? (
+        np.rdns_ipv6 != null ? np.rdns_ipv6 :
+        np.rdns != null ? np.rdns :
+        local.cluster_rdns_ipv6
+      ) : null,
+      labels = merge(
+        np.labels,
+        { nodepool = np.name }
+      ),
+      annotations = np.annotations,
+      taints = [for taint in np.taints : regex(
+        "^(?P<key>[^=:]+)=?(?P<value>[^=:]*?):(?P<effect>.+)$",
+        taint
+      )],
+      count = length(np.servers),
+    }
+  ]
+
   cluster_autoscaler_nodepools = [
     for np in var.cluster_autoscaler_nodepools : {
       name        = np.name,
@@ -88,13 +116,16 @@ locals {
 
   control_plane_nodepools_map      = { for np in local.control_plane_nodepools : np.name => np }
   worker_nodepools_map             = { for np in local.worker_nodepools : np.name => np }
+  bare_metal_nodepools_map         = { for np in local.bare_metal_nodepools : np.name => np }
   cluster_autoscaler_nodepools_map = { for np in local.cluster_autoscaler_nodepools : np.name => np }
 
   control_plane_sum = sum(concat(
     [for np in local.control_plane_nodepools : np.count], [0]
   ))
   worker_sum = sum(concat(
-    [for np in local.worker_nodepools : np.count if length(np.taints) == 0], [0]
+    [for np in local.worker_nodepools : np.count if length(np.taints) == 0],
+    [for np in local.bare_metal_nodepools : np.count if length(np.taints) == 0],
+    [0]
   ))
   cluster_autoscaler_min_sum = sum(concat(
     [for np in local.cluster_autoscaler_nodepools : np.min if length(np.taints) == 0], [0]

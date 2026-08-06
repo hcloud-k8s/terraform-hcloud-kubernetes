@@ -71,7 +71,8 @@ Provision a highly available and secure Kubernetes cluster on Hetzner Cloud, def
 
 * **Immutable Infrastructure:** Uses Talos Linux to deliver a fully declarative, immutable Kubernetes cluster.
 * **Multi-Architecture:** Supports deployment on both **AMD64** and **ARM64** instances, with automated image builds.
-* **High Availability:** Provides high availability across control plane and worker components for reliable operation.
+* **Bare Metal Server:** Provides fully managed integration of **Hetzner Bare Metal Servers** into the cluster.
+* **High Availability:** High availability across control plane and worker components for reliable operation.
 * **Autoscaling:** Supports automatic scaling of both **Nodes** and **Pods** to seamlessly handle dynamic workloads.
 * **Quick Start:** Optional **Gateway API**, **Cert Manager**, and **Longhorn** integrations for faster app deployment.
 * **Dual-Stack:** Load balancers provide native **IPv4** and **IPv6** connectivity with **PROXY Protocol** support.
@@ -85,7 +86,7 @@ This project bundles essential Kubernetes components, preconfigured for seamless
     <img align="center" alt="Talos Cloud Controller Manager" src="https://www.google.com/s2/favicons?domain=https://docs.siderolabs.com&sz=32" width="16">
     <b><a href="https://github.com/siderolabs/talos-cloud-controller-manager">Talos Cloud Controller Manager (CCM)</a></b>
   </summary>
-  Manages node resources by updating with cloud metadata, handling lifecycle deletions, and automatically approving node CSRs.
+  Automatically approves kubelet server Certificate Signing Requests (CSRs) for Talos nodes.
 - <summary>
     <img align="center" alt="Talos Backup" src="https://www.google.com/s2/favicons?domain=https://docs.siderolabs.com&sz=32" width="16">
     <b><a href="https://github.com/siderolabs/talos-backup">Talos Backup</a></b>
@@ -251,6 +252,68 @@ tofu destroy
 
 <!-- Advanced Configuration -->
 ## ⚙️ Advanced Configuration
+
+<!-- Bare Metal Server -->
+<details>
+<summary><b>Bare Metal Server</b></summary>
+
+Bare metal worker nodes can be added through Hetzner Robot. The module enables rescue mode, installs Talos, attaches the servers to a vSwitch, and applies the Talos worker configuration.
+
+Example `kubernetes.tf` snippet:
+```hcl
+hcloud_robot_user     = "<robot-user>"
+hcloud_robot_password = "<robot-password>"
+
+bare_metal_nodepools = [
+  {
+    name = "bare-metal"
+    servers = [
+      { number = 1111111, private_ipv4 = "10.0.88.2" },
+      { number = 2222222, private_ipv4 = "10.0.88.3" }
+    ]
+  }
+]
+```
+
+Example with an existing vSwitch and an explicit install disk:
+```hcl
+hcloud_vswitch_id = 12345
+
+bare_metal_nodepools = [
+  {
+    name         = "bare-metal"
+    architecture = "amd64"
+    servers = [
+      { number = 1234567, private_ipv4 = "10.0.88.2", install_disk = "ata-Samsung_SSD_870_ABC123" }
+    ]
+  }
+]
+```
+
+#### vSwitch Network
+
+The module creates the vSwitch and connects it to the Hetzner Cloud Network.
+
+Each server needs a unique `private_ipv4` from the vSwitch subnet. For the default `10.0.0.0/16` network, the bare metal subnet can also be calculated with:
+```sh
+echo 'cidrsubnet("10.0.0.0/16", 9, 176)' | tofu console
+"10.0.88.0/25"
+```
+
+When bare metal servers are enabled for the first time, Cilium might need to be restarted to pick up the changed routing mode:
+```sh
+kubectl -n kube-system rollout restart ds/cilium ds/cilium-envoy
+kubectl -n kube-system rollout restart deploy/cilium-operator
+```
+
+#### Install Disk
+
+If `install_disk` is omitted, the module automatically selects the first eligible non-removable disk. If set, `install_disk` must be a disk ID from `/dev/disk/by-id`.
+
+> [!WARNING]
+> Installing Talos is destructive. The selected install disk is discarded before Talos is written, and all other eligible install disks are wiped. Existing data on those disks is lost.
+
+</details>
 
 <!-- Cluster Access -->
 <details>
@@ -1325,7 +1388,7 @@ Changing software versions manually is not recommended. Component versions are s
   * [x] Integrate Cilium Gateway API
   * [x] Deprecate Ingress NGINX in v4
   * [ ] Remove Ingress NGINX in v6
-* [ ] **Support for Hetzner [Dedicated Bare Metal Servers](https://www.hetzner.com/de/dedicated-rootserver/)**
+* [x] **Support for Hetzner [Dedicated Bare Metal Servers](https://www.hetzner.com/de/dedicated-rootserver/)**
 
 <!-- Support this Project -->
 ## ❤️ Support this Project
@@ -1339,11 +1402,11 @@ If you'd like to support this project, please consider leaving a ⭐ on GitHub!<
 </a>
 
 
-<picture>
+<!-- <picture>
  <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=hcloud-k8s/terraform-hcloud-kubernetes&type=date&theme=dark&legend=top-left" />
  <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=hcloud-k8s/terraform-hcloud-kubernetes&type=date&legend=top-left" />
  <img width="700" alt="Star History Chart" src="https://api.star-history.com/svg?repos=hcloud-k8s/terraform-hcloud-kubernetes&type=date&legend=top-left" />
-</picture>
+</picture> -->
 
 > [!TIP]
 > If you don’t have a Hetzner account yet, you can use this [Hetzner Cloud Referral Link](https://hetzner.cloud/?ref=GMylKeDmqtsD) to claim a €20 credit and support this project at the same time.
