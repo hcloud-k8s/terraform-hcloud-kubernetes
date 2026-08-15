@@ -1441,11 +1441,11 @@ If you'd like to support this project, please consider leaving a ⭐ on GitHub!<
 </a>
 
 
-<!-- <picture>
- <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=hcloud-k8s/terraform-hcloud-kubernetes&type=date&theme=dark&legend=top-left" />
- <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=hcloud-k8s/terraform-hcloud-kubernetes&type=date&legend=top-left" />
- <img width="700" alt="Star History Chart" src="https://api.star-history.com/svg?repos=hcloud-k8s/terraform-hcloud-kubernetes&type=date&legend=top-left" />
-</picture> -->
+<picture>
+ <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=hcloud-k8s/terraform-hcloud-kubernetes&type=date&theme=dark&legend=top-left" />
+ <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=hcloud-k8s/terraform-hcloud-kubernetes&type=date&legend=top-left" />
+ <img width="700" alt="Star History Chart" src="https://star-history.dera.page/svg?repos=hcloud-k8s/terraform-hcloud-kubernetes&type=date&legend=top-left" />
+</picture>
 
 > [!TIP]
 > If you don’t have a Hetzner account yet, you can use this [Hetzner Cloud Referral Link](https://hetzner.cloud/?ref=GMylKeDmqtsD) to claim a €20 credit and support this project at the same time.
