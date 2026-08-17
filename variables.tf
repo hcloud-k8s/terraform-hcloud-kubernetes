@@ -2101,7 +2101,7 @@ variable "cert_manager_webhook_hetzner_helm_chart" {
 
 variable "cert_manager_webhook_hetzner_helm_version" {
   type        = string
-  default     = "0.8.0"
+  default     = "0.8.1"
   description = "Version of the Cert Manager Hetzner webhook Helm chart to deploy."
 }
 
