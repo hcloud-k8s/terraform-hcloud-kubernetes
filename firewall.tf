@@ -507,7 +507,7 @@ data "http" "current_ipv4" {
 
 data "http" "current_ipv6" {
   count = local.current_ipv6_lookup_required ? 1 : 0
-  url   = "https://${local.current_ipv6_lookup_required ? "ipv6." : ""}icanhazip.com"
+  url   = "https://${var.firewall_use_current_ipv6 == true ? "ipv6." : ""}icanhazip.com"
 
   retry {
     attempts     = 10
