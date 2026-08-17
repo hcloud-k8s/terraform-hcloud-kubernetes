@@ -168,7 +168,7 @@ variable "firewall_use_current_ipv4" {
 variable "firewall_use_current_ipv6" {
   type        = bool
   default     = null
-  description = "Determines whether the current IPv6 /64 CIDR is used for Talos and Kube API firewall rules. If `cluster_access` is set to `public`, the default is true."
+  description = "Determines whether the current IPv6 /64 CIDR is used for Talos and Kube API firewall rules. Set to true to require IPv6 or false to disable it. When omitted, IPv6 is used only if it is detected automatically."
 }
 
 variable "firewall_extra_rules" {
