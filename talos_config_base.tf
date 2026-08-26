@@ -30,6 +30,9 @@ locals {
   talos_public_link_name         = "eth0"
   talos_private_link_name        = local.talos_public_interface_enabled ? "eth1" : "eth0"
 
+  talos_cloud_metadata_ipv4_cidr  = "169.254.169.254/32"
+  talos_cloud_public_ipv4_gateway = "172.31.1.1"
+
   # Routes
   # Note: Default route (0.0.0.0/0) omits the 'network' key per Talos routing config requirements
   # See https://github.com/siderolabs/talos/issues/12521
@@ -104,6 +107,13 @@ locals {
       kind       = "LinkConfig"
       name       = local.talos_public_link_name
       up         = true
+      routes = [
+        {
+          destination = local.talos_cloud_metadata_ipv4_cidr
+          gateway     = local.talos_cloud_public_ipv4_gateway
+          metric      = 128
+        }
+      ]
     }
   ] : []
 
