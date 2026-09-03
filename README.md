@@ -157,7 +157,7 @@ Talos Linux is a secure, minimal, and immutable OS for Kubernetes, removing SSH 
 ### ✅ Prerequisites
 
 - [terraform](https://developer.hashicorp.com/terraform/install) or [tofu](https://opentofu.org/docs/intro/install/) to deploy the Cluster
-- [packer](https://developer.hashicorp.com/packer/install) to upload Talos Images when cloud image building is enabled
+- [packer](https://developer.hashicorp.com/packer/install) to upload Talos Images
 - [curl](https://curl.se) and [jq](https://jqlang.org/download/) for API Communication
 - [talosctl](https://www.talos.dev/latest/talos-guides/install/talosctl) to control the Talos Cluster
 - [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl) to control Kubernetes (optional)
