@@ -306,6 +306,15 @@ resource "terraform_data" "bare_metal_server" {
       condition     = local.bare_metal_initialization_ssh_hosts[each.key] != ""
       error_message = "Bare metal initialization SSH host could not be determined for server ${each.value.number}."
     }
+
+    # One "Allow SSH IPv4 N" rule is emitted per source, and Robot rejects a
+    # rule set that exceeds its per-direction limit as a whole — with 400
+    # INVALID_INPUT invalid:["rules"] and no indication of the cause. Without
+    # this check the install aborts before the server is ever logged into.
+    precondition {
+      condition     = length(local.bare_metal_initialization_firewall_input_rules) <= local.robot_firewall_max_rules_per_direction
+      error_message = "Bare metal server ${each.value.number} would get ${length(local.bare_metal_initialization_firewall_input_rules)} Robot firewall input rules during initialization, but Hetzner Robot accepts at most ${local.robot_firewall_max_rules_per_direction} per direction. Each source in firewall_talos_api_source (which falls back to firewall_api_source) adds one SSH rule; set firewall_talos_api_source to just the address that runs OpenTofu."
+    }
   }
 
   provisioner "local-exec" {
