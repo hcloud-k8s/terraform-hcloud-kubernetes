@@ -30,9 +30,7 @@ locals {
     ) : []
   )
 
-  # Hetzner Robot's stateless firewall accepts at most 10 rules per direction.
-  # A POST with more is rejected in full, so the server ends up with no
-  # firewall rather than a truncated one.
+  # Hetzner Robot firewalls support at most 10 rules per direction.
   robot_firewall_max_rules_per_direction = 10
 
   robot_firewall_base_curl_data = [
@@ -55,46 +53,46 @@ locals {
     for field in local.robot_firewall_rule_fields : field if field != "dst_ip"
   ]
 
-  bare_metal_initialization_firewall_configured_sources = coalesce(local.firewall_talos_api_source, [])
-  bare_metal_initialization_firewall_configured_ipv4_sources = [
-    for source in local.bare_metal_initialization_firewall_configured_sources : source
+  bare_metal_firewall_talos_api_configured_sources = distinct(compact(coalesce(local.firewall_talos_api_source, [])))
+  bare_metal_firewall_talos_api_configured_ipv4_sources = [
+    for source in local.bare_metal_firewall_talos_api_configured_sources : source
     if !strcontains(source, ":")
   ]
-  bare_metal_initialization_firewall_configured_ipv6_sources = [
-    for source in local.bare_metal_initialization_firewall_configured_sources : source
+  bare_metal_firewall_talos_api_configured_ipv6_sources = [
+    for source in local.bare_metal_firewall_talos_api_configured_sources : source
     if strcontains(source, ":")
   ]
 
-  bare_metal_initialization_firewall_use_current_ipv4 = local.bare_metal_enabled && coalesce(var.firewall_use_current_ipv4, length(local.bare_metal_initialization_firewall_configured_ipv4_sources) == 0)
-  bare_metal_initialization_firewall_current_ipv4_sources = (
-    local.bare_metal_initialization_firewall_use_current_ipv4 ?
+  bare_metal_firewall_talos_api_use_current_ipv4 = local.bare_metal_enabled && coalesce(var.firewall_use_current_ipv4, length(local.bare_metal_firewall_talos_api_configured_ipv4_sources) == 0)
+  bare_metal_firewall_talos_api_current_ipv4_sources = (
+    local.bare_metal_firewall_talos_api_use_current_ipv4 ?
     ["${chomp(data.http.current_ipv4[0].response_body)}/32"] :
     []
   )
-  bare_metal_initialization_firewall_ipv4_sources = distinct(compact(concat(
-    local.bare_metal_initialization_firewall_configured_ipv4_sources,
-    local.bare_metal_initialization_firewall_current_ipv4_sources
+  bare_metal_firewall_talos_api_ipv4_sources = distinct(compact(concat(
+    local.bare_metal_firewall_talos_api_configured_ipv4_sources,
+    local.bare_metal_firewall_talos_api_current_ipv4_sources
   )))
-  bare_metal_initialization_firewall_ipv4_available = length(local.bare_metal_initialization_firewall_ipv4_sources) > 0
+  bare_metal_firewall_talos_api_ipv4_available = length(local.bare_metal_firewall_talos_api_ipv4_sources) > 0
 
-  bare_metal_initialization_firewall_use_current_ipv6 = local.bare_metal_enabled && !local.bare_metal_initialization_firewall_ipv4_available && coalesce(var.firewall_use_current_ipv6, length(local.bare_metal_initialization_firewall_configured_ipv6_sources) == 0)
-  bare_metal_initialization_firewall_current_ipv6_sources = (
-    local.bare_metal_initialization_firewall_use_current_ipv6 ? (
+  bare_metal_firewall_talos_api_use_current_ipv6 = local.bare_metal_enabled && !local.bare_metal_firewall_talos_api_ipv4_available && coalesce(var.firewall_use_current_ipv6, length(local.bare_metal_firewall_talos_api_configured_ipv6_sources) == 0)
+  bare_metal_firewall_talos_api_current_ipv6_sources = (
+    local.bare_metal_firewall_talos_api_use_current_ipv6 ? (
       strcontains(data.http.current_ipv6[0].response_body, ":") ?
       [cidrsubnet("${chomp(data.http.current_ipv6[0].response_body)}/64", 0, 0)] :
       []
     ) :
     []
   )
-  bare_metal_initialization_firewall_ipv6_sources = local.bare_metal_initialization_firewall_ipv4_available ? [] : distinct(compact(concat(
-    local.bare_metal_initialization_firewall_configured_ipv6_sources,
-    local.bare_metal_initialization_firewall_current_ipv6_sources
+  bare_metal_firewall_talos_api_ipv6_sources = local.bare_metal_firewall_talos_api_ipv4_available ? [] : distinct(compact(concat(
+    local.bare_metal_firewall_talos_api_configured_ipv6_sources,
+    local.bare_metal_firewall_talos_api_current_ipv6_sources
   )))
-  bare_metal_initialization_firewall_ipv6_enabled = length(local.bare_metal_initialization_firewall_ipv6_sources) > 0
+  bare_metal_firewall_talos_api_ipv6_enabled = length(local.bare_metal_firewall_talos_api_ipv6_sources) > 0
 
   bare_metal_initialization_firewall_service_rules = concat(
     [
-      for source_index, source in local.bare_metal_initialization_firewall_ipv4_sources : {
+      for source_index, source in local.bare_metal_firewall_talos_api_ipv4_sources : {
         name       = "Allow SSH IPv4 ${source_index + 1}"
         ip_version = "ipv4"
         protocol   = "tcp"
@@ -105,7 +103,7 @@ locals {
       }
     ],
     # Robot firewall IPv6 rules cannot filter source IPs, so IPv6 is fallback-only.
-    local.bare_metal_initialization_firewall_ipv6_enabled ? [
+    local.bare_metal_firewall_talos_api_ipv6_enabled ? [
       {
         name       = "Allow SSH IPv6"
         ip_version = "ipv6"
@@ -161,55 +159,6 @@ locals {
       ]
     ])
   )
-
-  bare_metal_firewall_configured_sources = distinct(compact(concat(
-    coalesce(local.firewall_kube_api_source, []),
-    coalesce(local.firewall_talos_api_source, [])
-  )))
-  bare_metal_firewall_configured_ipv4_sources = [
-    for source in local.bare_metal_firewall_configured_sources : source
-    if !strcontains(source, ":")
-  ]
-  bare_metal_firewall_configured_ipv6_sources = [
-    for source in local.bare_metal_firewall_configured_sources : source
-    if strcontains(source, ":")
-  ]
-  bare_metal_firewall_use_current_ipv4 = local.bare_metal_enabled && coalesce(var.firewall_use_current_ipv4, length(local.bare_metal_firewall_configured_ipv4_sources) == 0)
-  bare_metal_firewall_current_ipv4_sources = (
-    local.bare_metal_firewall_use_current_ipv4 ?
-    ["${chomp(data.http.current_ipv4[0].response_body)}/32"] :
-    []
-  )
-  bare_metal_firewall_ipv4_available = length(local.bare_metal_firewall_configured_ipv4_sources) > 0 || local.bare_metal_firewall_use_current_ipv4
-
-  bare_metal_firewall_use_current_ipv6 = local.bare_metal_enabled && !local.bare_metal_firewall_ipv4_available && coalesce(var.firewall_use_current_ipv6, length(local.bare_metal_firewall_configured_ipv6_sources) == 0)
-  bare_metal_firewall_current_ipv6_sources = (
-    local.bare_metal_firewall_use_current_ipv6 ? (
-      strcontains(data.http.current_ipv6[0].response_body, ":") ?
-      [cidrsubnet("${chomp(data.http.current_ipv6[0].response_body)}/64", 0, 0)] :
-      []
-    ) :
-    []
-  )
-  bare_metal_firewall_talos_api_configured_ipv4_sources = [
-    for source in coalesce(local.firewall_talos_api_source, []) : source
-    if !strcontains(source, ":")
-  ]
-  bare_metal_firewall_talos_api_configured_ipv6_sources = [
-    for source in coalesce(local.firewall_talos_api_source, []) : source
-    if strcontains(source, ":")
-  ]
-  bare_metal_firewall_talos_api_sources = distinct(compact(concat(
-    local.bare_metal_firewall_ipv4_available ? local.bare_metal_firewall_talos_api_configured_ipv4_sources : local.bare_metal_firewall_talos_api_configured_ipv6_sources,
-    local.bare_metal_firewall_ipv4_available ? local.bare_metal_firewall_current_ipv4_sources : local.bare_metal_firewall_current_ipv6_sources
-  )))
-  bare_metal_firewall_talos_api_ipv4_sources = [
-    for source in local.bare_metal_firewall_talos_api_sources : source
-    if !strcontains(source, ":")
-  ]
-  bare_metal_firewall_talos_api_ipv6_enabled = anytrue([
-    for source in local.bare_metal_firewall_talos_api_sources : strcontains(source, ":")
-  ])
 
   bare_metal_firewall_extra_input_rules = flatten([
     for rule in var.firewall_extra_rules : rule.direction == "in" ? (
@@ -313,18 +262,7 @@ locals {
         action     = "accept"
       },
     ],
-    # No Kube API rules here on purpose. Bare metal servers join as workers
-    # (see var.bare_metal_nodepools), so no kube-apiserver ever listens on
-    # them and a rule for local.kube_api_port can never match traffic.
-    #
-    # Emitting them is not just dead weight, it breaks the firewall: the
-    # Robot API accepts at most 10 rules per direction, and this block
-    # produced one rule per source in firewall_kube_api_source (which falls
-    # back to firewall_api_source). A cluster that allows its own and a
-    # second cluster's node IPs to the Kube API reaches that ceiling easily
-    # — 10 sources plus the two base rules and one Talos API rule is 13, and
-    # Robot rejects the whole set with 400 INVALID_INPUT invalid:["rules"].
-    # The bare metal node then never gets a firewall at all.
+    # Bare-metal nodes are workers and do not expose kube-apiserver.
     [
       for source_index, source in local.bare_metal_firewall_talos_api_ipv4_sources : {
         name       = "Allow Talos API IPv4 ${source_index + 1}"
@@ -457,8 +395,8 @@ locals {
   )
 
   firewall_id                  = local.firewall_external ? var.firewall_id : hcloud_firewall.this[0].id
-  current_ipv4_lookup_required = local.firewall_use_current_ipv4 || local.bare_metal_initialization_firewall_use_current_ipv4 || local.bare_metal_firewall_use_current_ipv4
-  current_ipv6_lookup_required = local.firewall_use_current_ipv6 || local.bare_metal_initialization_firewall_use_current_ipv6 || local.bare_metal_firewall_use_current_ipv6
+  current_ipv4_lookup_required = local.firewall_use_current_ipv4 || local.bare_metal_firewall_talos_api_use_current_ipv4
+  current_ipv6_lookup_required = local.firewall_use_current_ipv6 || local.bare_metal_firewall_talos_api_use_current_ipv6
 }
 
 data "http" "current_ipv4" {
@@ -616,18 +554,15 @@ resource "terraform_data" "bare_metal_firewall" {
     }
   }
 
-  # The Robot API accepts at most 10 rules per direction and rejects a set
-  # that exceeds it as a whole, with 400 INVALID_INPUT invalid:["rules"] and
-  # no hint about which limit was hit. Fail here instead, while the operator
-  # can still see which list grew too long.
   lifecycle {
     precondition {
       condition     = length(local.bare_metal_firewall_input_rules) <= local.robot_firewall_max_rules_per_direction
-      error_message = "Bare metal server ${each.value.number} would get ${length(local.bare_metal_firewall_input_rules)} Robot firewall input rules, but Hetzner Robot accepts at most ${local.robot_firewall_max_rules_per_direction} per direction. Every source in firewall_talos_api_source (which falls back to firewall_api_source) adds one rule; narrow that list or move sources into the private network."
+      error_message = "Bare metal server ${each.value.number} has ${length(local.bare_metal_firewall_input_rules)} Robot firewall input rules, but the maximum is ${local.robot_firewall_max_rules_per_direction}."
     }
+
     precondition {
       condition     = length(local.bare_metal_firewall_output_rules) <= local.robot_firewall_max_rules_per_direction
-      error_message = "Bare metal server ${each.value.number} would get ${length(local.bare_metal_firewall_output_rules)} Robot firewall output rules, but Hetzner Robot accepts at most ${local.robot_firewall_max_rules_per_direction} per direction. Reduce the outbound rules in firewall_extra_rules."
+      error_message = "Bare metal server ${each.value.number} has ${length(local.bare_metal_firewall_output_rules)} Robot firewall output rules, but the maximum is ${local.robot_firewall_max_rules_per_direction}."
     }
   }
 
