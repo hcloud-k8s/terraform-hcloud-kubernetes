@@ -61,9 +61,6 @@ Hcloud Kubernetes is a Terraform module for deploying a fully declarative, manag
 
 This project is committed to production-grade configuration and lifecycle management, ensuring all components are set up for high availability. It includes a curated selection of widely used and officially recognized Kubernetes components. If you encounter any issues, suboptimal settings, or missing elements, please file an [issue](https://github.com/hcloud-k8s/terraform-hcloud-kubernetes/issues) to help us improve this project.
 
-> [!TIP]
-> If you don’t have a Hetzner account yet, you can use this [Hetzner Cloud Referral Link](https://hetzner.cloud/?ref=GMylKeDmqtsD) to claim a €20 credit and support this project at the same time.
-
 <!-- Features -->
 ### ✨ Features
 
@@ -148,7 +145,7 @@ Talos Linux is a secure, minimal, and immutable OS for Kubernetes, removing SSH 
 
 **Encryption in Transit:** Pod network traffic is transparently encrypted by Cilium using [WireGuard](https://docs.cilium.io/en/latest/security/network/encryption-wireguard/) by default, with optional support for [IPsec](https://docs.cilium.io/en/latest/security/network/encryption-ipsec/).
 
-**Encryption at Rest:** The [STATE](https://www.talos.dev/latest/learn-more/architecture/#file-system-partitions) and [EPHEMERAL](https://www.talos.dev/latest/learn-more/architecture/#file-system-partitions) partitions are encrypted by default using [Talos Disk Encryption](https://www.talos.dev/latest/talos-guides/configuration/disk-encryption/) with LUKS2. Each node is secured with an individual encryption key derived from its unique `nodeID`.
+**Encryption at Rest:** The [STATE](https://docs.siderolabs.com/talos/latest/configure-your-talos-cluster/storage-and-disk-management/disk-encryption#state-partition) and [EPHEMERAL](https://docs.siderolabs.com/talos/latest/configure-your-talos-cluster/storage-and-disk-management/disk-encryption#ephemeral-partition) partitions are encrypted by default using [Talos Disk Encryption](https://docs.siderolabs.com/talos/latest/configure-your-talos-cluster/storage-and-disk-management/disk-encryption) with LUKS2. Each node is secured with an individual encryption key derived from its unique `nodeID`.
 
 <!-- Getting Started -->
 ## 🚀 Getting Started
@@ -159,7 +156,7 @@ Talos Linux is a secure, minimal, and immutable OS for Kubernetes, removing SSH 
 - [terraform](https://developer.hashicorp.com/terraform/install) or [tofu](https://opentofu.org/docs/intro/install/) to deploy the Cluster
 - [packer](https://developer.hashicorp.com/packer/install) to upload Talos Images
 - [curl](https://curl.se) and [jq](https://jqlang.org/download/) for API Communication
-- [talosctl](https://www.talos.dev/latest/talos-guides/install/talosctl) to control the Talos Cluster
+- [talosctl](https://docs.siderolabs.com/talos/latest/getting-started/talosctl) to control the Talos Cluster
 - [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl) to control Kubernetes (optional)
 
 > [!IMPORTANT]
@@ -230,7 +227,7 @@ kubectl get pods -A
 ```
 
 For more detailed information and examples, please visit:
-- [Talos CLI Documentation](https://www.talos.dev/latest/reference/cli/)
+- [Talos CLI Documentation](https://docs.siderolabs.com/talos/latest/reference/cli)
 - [Kubernetes CLI Documentation](https://kubernetes.io/docs/reference/kubectl/introduction/)
 
 ### 💥 Teardown
@@ -1424,7 +1421,7 @@ Changing software versions manually is not recommended. Component versions are s
 
 <!-- Support this Project -->
 ## ❤️ Support this Project
-If you'd like to support this project, please consider leaving a ⭐ on GitHub!<br>
+If you'd like to support this project, please consider leaving a ⭐ on GitHub!
 <a href="https://github.com/hcloud-k8s/terraform-hcloud-kubernetes">
   <img
     src="https://img.shields.io/github/stars/hcloud-k8s/terraform-hcloud-kubernetes"
@@ -1439,9 +1436,6 @@ If you'd like to support this project, please consider leaving a ⭐ on GitHub!<
  <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=hcloud-k8s/terraform-hcloud-kubernetes&type=date&legend=top-left" />
  <img width="700" alt="Star History Chart" src="https://api.star-history.com/svg?repos=hcloud-k8s/terraform-hcloud-kubernetes&type=date&legend=top-left" />
 </picture> -->
-
-> [!TIP]
-> If you don’t have a Hetzner account yet, you can use this [Hetzner Cloud Referral Link](https://hetzner.cloud/?ref=GMylKeDmqtsD) to claim a €20 credit and support this project at the same time.
 
 ### 💖 Special Thanks to All Sponsors! 💖
 <p align="center">
