@@ -110,10 +110,10 @@
         "/^variables\\.tf$/"
       ],
       "matchStrings": [
-        "variable\\s+\"[^\"]*helm_repository\"\\s*{[^}]*default\\s*=\\s*\"oci://(?<registryUrl>[^\"]+)\"[^}]*?}\\s*variable\\s+\"[^\"]*helm_chart\"\\s*{[^}]*default\\s*=\\s*\"(?<chartName>[^\"]+)\"[^}]*?}\\s*variable\\s+\"[^\"]*helm_version\"\\s*{[^}]*default\\s*=\\s*\"(?<currentValue>[^\"]+)\"[^}]*?}"
+        "variable\\s+\"[^\"]*helm_repository\"\\s*{[^}]*default\\s*=\\s*\"oci://(?<ociRegistryPath>[^\"]+)\"[^}]*?}\\s*variable\\s+\"[^\"]*helm_chart\"\\s*{[^}]*default\\s*=\\s*\"(?<chartName>[^\"]+)\"[^}]*?}\\s*variable\\s+\"[^\"]*helm_version\"\\s*{[^}]*default\\s*=\\s*\"(?<currentValue>[^\"]+)\"[^}]*?}"
       ],
       "datasourceTemplate": "docker",
-      "depNameTemplate": "{{{registryUrl}}}/{{{chartName}}}",
+      "depNameTemplate": "{{{ociRegistryPath}}}/{{{chartName}}}",
       "versioningTemplate": "semver"
     },
     {
