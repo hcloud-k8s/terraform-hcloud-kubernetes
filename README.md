@@ -1370,7 +1370,7 @@ The table below lists the Talos and Kubernetes versions used by each Hcloud K8s 
 | Hcloud K8s | Talos Linux | Kubernetes |
 | :--------: | :---------: | :--------: |
 |  **(7)**   |   (1.15)    |    1.36    |
-|  **(6)**   |   (1.14)    |    1.35    |
+|  **(6)**   |    1.14     |    1.35    |
 |   **5**    |    1.13     |    1.34    |
 <!--
 |   **4**    |    1.12     |    1.33    |
@@ -1385,17 +1385,11 @@ Parenthesized versions are planned targets.
 ### ☑️ Kubernetes Compatibility Matrix
 The table below lists the **minimum required versions** of each component to support the specified Kubernetes release.
 
-| Kubernetes | Hcloud CCM  | Hcloud CSI  |  Longhorn   |    Cilium     | Ingress NGINX | Cert Manager |
-| :--------: | :---------: | :---------: | :---------: | :-----------: | :-----------: | :----------: |
-|  **1.36**  | ≥&nbsp;1.31 | ≥&nbsp;2.21 | ≥&nbsp;1.12 |  ≥&nbsp;1.20  |       -       | ≥&nbsp;1.21  |
-|  **1.35**  | ≥&nbsp;1.30 | ≥&nbsp;2.19 | ≥&nbsp;1.11 | ≥&nbsp;1.19.2 |  ≥&nbsp;4.15  | ≥&nbsp;1.19  |
-|  **1.34**  | ≥&nbsp;1.27 | ≥&nbsp;2.18 | ≥&nbsp;1.11 |  ≥&nbsp;1.19  |  ≥&nbsp;4.14  | ≥&nbsp;1.19  |
-<!--
-|  **1.33**  | ≥&nbsp;1.26 | ≥&nbsp;2.14 | ≥&nbsp;1.8.2 |  ≥&nbsp;1.18  |  ≥&nbsp;4.13  | ≥&nbsp;1.18  |
-|  **1.32**  | ≥&nbsp;1.23 | ≥&nbsp;2.12 | ≥&nbsp;1.8.1 |  ≥&nbsp;1.17  |  ≥&nbsp;4.12  | ≥&nbsp;1.17  |
-|  **1.31**  | ≥&nbsp;1.21 | ≥&nbsp;2.10 |  ≥&nbsp;1.8  |  ≥&nbsp;1.17  |  ≥&nbsp;4.12  | ≥&nbsp;1.15  |
-|  **1.30**  | ≥&nbsp;1.20 | ≥&nbsp;2.9  | ≥&nbsp;1.7.1 |  ≥&nbsp;1.16  | ≥&nbsp;4.10.1 | ≥&nbsp;1.14  |
--->
+| Kubernetes | Hcloud CCM  | Hcloud CSI  |  Longhorn   |    Cilium     | Cert Manager | Hetzner Webhook |
+| :--------: | :---------: | :---------: | :---------: | :-----------: | :----------: | :-------------: |
+|  **1.36**  | ≥&nbsp;1.31 | ≥&nbsp;2.21 | ≥&nbsp;1.12 |  ≥&nbsp;1.20  | ≥&nbsp;1.21  |   ≥&nbsp;0.8    |
+|  **1.35**  | ≥&nbsp;1.30 | ≥&nbsp;2.19 | ≥&nbsp;1.11 | ≥&nbsp;1.19.2 | ≥&nbsp;1.19  |  ≥&nbsp;0.6.4   |
+|  **1.34**  | ≥&nbsp;1.27 | ≥&nbsp;2.18 | ≥&nbsp;1.11 |  ≥&nbsp;1.19  | ≥&nbsp;1.19  |  ≥&nbsp;0.6.1   |
 
 ### ⬆️ Upgrade Policy
 Any minor or major upgrade to **Talos** or **Kubernetes** results in a major version change for this module. Downgrades are generally neither supported nor tested.
@@ -1413,7 +1407,6 @@ Changing software versions manually is not recommended. Component versions are s
 - HCSI: https://github.com/hetznercloud/csi-driver/blob/main/docs/kubernetes/versioning-policy.md
 - Longhorn: https://longhorn.io/docs/1.10.0/best-practices/#kubernetes-version
 - Cilium: https://github.com/cilium/cilium/blob/v1.19.2/Documentation/network/kubernetes/compatibility.rst
-- Ingress Nginx: https://github.com/kubernetes/ingress-nginx?tab=readme-ov-file#supported-versions-table 
 - Cert Manager: https://cert-manager.io/docs/releases/
 - Cert Manager Webhook Hetzner: https://github.com/hetzner/cert-manager-webhook-hetzner/releases
 - Autoscaler: https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/README.md#releases
