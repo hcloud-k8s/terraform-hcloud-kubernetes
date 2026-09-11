@@ -1421,7 +1421,7 @@ Changing software versions manually is not recommended. Component versions are s
 
 <!-- Support this Project -->
 ## ❤️ Support this Project
-If you'd like to support this project, please consider leaving a ⭐ on GitHub!
+If you'd like to support this project, please consider leaving a ⭐ on GitHub!<br>
 <a href="https://github.com/hcloud-k8s/terraform-hcloud-kubernetes">
   <img
     src="https://img.shields.io/github/stars/hcloud-k8s/terraform-hcloud-kubernetes"
