@@ -39,6 +39,16 @@
       "allowedVersions": "<9.54.0"
     },
     {
+      "description": "Keep Gateway API on the version supported by Cilium",
+      "matchDatasources": [
+        "github-tags"
+      ],
+      "matchDepNames": [
+        "kubernetes-sigs/gateway-api"
+      ],
+      "allowedVersions": "<=1.6.1"
+    },
+    {
       "description": "Kubernetes — only allow current and next minor stream",
       "matchDatasources": [
         "github-tags",
