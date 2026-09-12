@@ -80,7 +80,7 @@ Provision a highly available and secure Kubernetes cluster on Hetzner Cloud, def
 ### 📦 Components
 This project bundles essential Kubernetes components, preconfigured for seamless operation on Hetzner Cloud:
 - <summary>
-    <img align="center" alt="Talos Cloud Controller Manager" src="https://www.google.com/s2/favicons?domain=https://docs.siderolabs.com&sz=32" width="16">
+    <img align="center" alt="Talos Cloud Controller Manager" src="https://www.google.com/s2/favicons?domain=https://docs.siderolabs.com&sz=32" width="18">
     <b><a href="https://github.com/siderolabs/talos-cloud-controller-manager">Talos Cloud Controller Manager (CCM)</a></b>
   </summary>
   Automatically approves kubelet server Certificate Signing Requests (CSRs) for Talos nodes.
