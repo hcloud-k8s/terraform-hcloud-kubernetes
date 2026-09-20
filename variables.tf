@@ -179,9 +179,10 @@ variable "firewall_extra_rules" {
     destination_ips = optional(list(string), [])
     protocol        = string
     port            = optional(string)
+    targets         = optional(list(string), ["cloud", "bare_metal"])
   }))
   default     = []
-  description = "Additional firewall rules to apply to the cluster."
+  description = "Additional firewall rules to apply to the cluster. Each rule can be limited to Cloud or Bare Metal servers through 'targets'."
 
   validation {
     condition = alltrue([
@@ -190,6 +191,16 @@ variable "firewall_extra_rules" {
       )
     ])
     error_message = "Each rule must specify 'direction' as 'in' or 'out'."
+  }
+
+  validation {
+    condition = alltrue([
+      for rule in var.firewall_extra_rules : (
+        length(rule.targets) > 0 &&
+        length(setsubtract(rule.targets, ["cloud", "bare_metal"])) == 0
+      )
+    ])
+    error_message = "Each rule must specify 'targets' as a non-empty subset of 'cloud' and 'bare_metal'."
   }
 
   validation {
