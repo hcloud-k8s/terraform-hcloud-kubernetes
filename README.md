@@ -816,17 +816,6 @@ spec:
           port: 8080
 ```
 
-> ⚠️ **Important:** When using PROXY protocol with Cilium Gateway API (enabled by default), external IPv6 connections will not work due to a bug in Cilium’s Gateway API implementation: [https://github.com/cilium/cilium/issues/42950](https://github.com/cilium/cilium/issues/42950)
-> 
-> If you need IPv6, disable PROXY protocol by adding the `load-balancer.hetzner.cloud/uses-proxyprotocol: "false"` infrastructure annotation and setting this module config:
-> ```
-> cilium_gateway_api_proxy_protocol_enabled = false
-> ```
-> After applying the module config, you may need to restart Cilium to pick up the change:
-> ```shell
-> kubectl -n kube-system rollout restart deployment/cilium-operator
-> ```
-
 </details>
 
 <!-- Ingress Load Balancer -->
