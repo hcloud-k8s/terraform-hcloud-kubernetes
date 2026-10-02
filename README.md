@@ -624,6 +624,7 @@ Each rule is defined with the following properties:
 - `destination_ips`: A list of destination IP addresses for inbound rules.
 - `protocol`: The protocol used (valid options: `tcp`, `udp`, `icmp`, `gre`, `esp`).
 - `port`: The port number (required for `tcp` and `udp` protocols, must not be specified for `icmp`, `gre`, and `esp`).
+- `targets`: Which servers the rule applies to (valid options: `cloud`, `bare_metal`). Defaults to both.
 
 Example `kubernetes.tf` snippet:
 ```hcl
@@ -647,6 +648,14 @@ firewall_extra_rules = [
     direction   = "in"
     source_ips  = ["0.0.0.0/0", "::/0"]
     protocol    = "icmp"
+  },
+  {
+    description = "Game Server Ports"
+    direction   = "in"
+    source_ips  = ["0.0.0.0/0"]
+    protocol    = "udp"
+    port        = "20000-21000"
+    targets     = ["bare_metal"]
   }
 ]
 ```
