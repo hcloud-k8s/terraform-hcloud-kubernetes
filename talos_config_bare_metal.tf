@@ -79,22 +79,28 @@ locals {
         )
       },
       {
+        apiVersion = "v1alpha1"
+        kind       = "KubeNodeConfig"
+        labels = merge(
+          local.bare_metal_nodepools_map[server.nodepool].labels,
+          {
+            "nodeid"                             = tostring(server.number),
+            "instance.hetzner.cloud/provided-by" = "robot"
+          }
+        )
+        annotations = local.bare_metal_nodepools_map[server.nodepool].annotations
+        taints = {
+          for taint in local.bare_metal_nodepools_map[server.nodepool].taints : taint.key => "${taint.value}:${taint.effect}"
+        }
+      },
+      yamldecode(local.talos_legacy_kubelet_config_enabled ? yamlencode({
         machine = {
-          nodeLabels = merge(
-            local.bare_metal_nodepools_map[server.nodepool].labels,
-            {
-              "nodeid"                             = tostring(server.number),
-              "instance.hetzner.cloud/provided-by" = "robot"
-            }
-          )
-          nodeAnnotations = local.bare_metal_nodepools_map[server.nodepool].annotations
           kubelet = {
             extraArgs = {
               "provider-id" = "hrobot://${server.number}"
             }
             extraConfig = merge(
               {
-                registerWithTaints = local.bare_metal_nodepools_map[server.nodepool].taints
                 systemReserved = {
                   cpu               = "100m"
                   memory            = "300Mi"
@@ -110,7 +116,28 @@ locals {
             )
           }
         }
-      },
+        }) : yamlencode({
+        apiVersion = "v1alpha1"
+        kind       = "KubeletConfig"
+        extraArgs = {
+          "provider-id" = "hrobot://${server.number}"
+        }
+        config = merge(
+          {
+            systemReserved = {
+              cpu               = "100m"
+              memory            = "300Mi"
+              ephemeral-storage = "1Gi"
+            }
+            kubeReserved = {
+              cpu               = "100m"
+              memory            = "350Mi"
+              ephemeral-storage = "1Gi"
+            }
+          },
+          var.kubernetes_kubelet_extra_config
+        )
+      })),
       {
         apiVersion = "v1alpha1"
         kind       = "HostnameConfig"

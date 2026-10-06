@@ -3,16 +3,22 @@ locals {
   worker_talos_config_patches = {
     for name, node in hcloud_server.worker : name => [
       {
+        apiVersion = "v1alpha1"
+        kind       = "KubeNodeConfig"
+        labels = merge(
+          local.worker_nodepools_map[node.labels.nodepool].labels,
+          { "nodeid" = tostring(node.id) }
+        )
+        annotations = local.worker_nodepools_map[node.labels.nodepool].annotations
+        taints = {
+          for taint in local.worker_nodepools_map[node.labels.nodepool].taints : taint.key => "${taint.value}:${taint.effect}"
+        }
+      },
+      yamldecode(local.talos_legacy_kubelet_config_enabled ? yamlencode({
         machine = {
-          nodeLabels = merge(
-            local.worker_nodepools_map[node.labels.nodepool].labels,
-            { "nodeid" = tostring(node.id) }
-          )
-          nodeAnnotations = local.worker_nodepools_map[node.labels.nodepool].annotations
           kubelet = {
             extraConfig = merge(
               {
-                registerWithTaints = local.worker_nodepools_map[node.labels.nodepool].taints
                 systemReserved = {
                   cpu               = "100m"
                   memory            = "300Mi"
@@ -28,7 +34,25 @@ locals {
             )
           }
         }
-      },
+        }) : yamlencode({
+        apiVersion = "v1alpha1"
+        kind       = "KubeletConfig"
+        config = merge(
+          {
+            systemReserved = {
+              cpu               = "100m"
+              memory            = "300Mi"
+              ephemeral-storage = "1Gi"
+            }
+            kubeReserved = {
+              cpu               = "100m"
+              memory            = "350Mi"
+              ephemeral-storage = "1Gi"
+            }
+          },
+          var.kubernetes_kubelet_extra_config
+        )
+      })),
       {
         apiVersion = "v1alpha1"
         kind       = "HostnameConfig"

@@ -855,7 +855,12 @@ variable "talos_upgrade_stage" {
 variable "talos_discovery_kubernetes_enabled" {
   type        = bool
   default     = false
-  description = "Enable or disable Kubernetes-based Talos discovery service. Deprecated as of Kubernetes v1.32, where the AuthorizeNodeWithSelectors feature gate is enabled by default."
+  description = "Kubernetes-based Talos discovery was removed in Talos v1.14. This compatibility variable must remain false."
+
+  validation {
+    condition     = !var.talos_discovery_kubernetes_enabled
+    error_message = "talos_discovery_kubernetes_enabled must be false because Kubernetes-based discovery was removed in Talos v1.14."
+  }
 }
 
 variable "talos_discovery_service_enabled" {
@@ -867,7 +872,7 @@ variable "talos_discovery_service_enabled" {
 variable "talos_cri_discard_unpacked_layers" {
   type        = bool
   default     = true
-  description = "Determines whether containerd discards unpacked image layers on all Talos nodes. Set to false to retain unpacked image layers. Attention: Changing this value forces all Talos nodes to reboot and should be performed with `talos_machine_configuration_apply_mode = \"staged\"`."
+  description = "Determines whether containerd discards unpacked image layers on all Talos nodes. Set to false to retain unpacked image layers. Changing this value restarts the CRI service on each node."
 }
 
 variable "talos_kubelet_extra_mounts" {
@@ -908,11 +913,11 @@ variable "talos_kernel_modules" {
 variable "talos_machine_configuration_apply_mode" {
   type        = string
   default     = "auto"
-  description = "Determines how changes to Talos machine configurations are applied. 'auto' (default) applies changes immediately and reboots if necessary. 'reboot' applies changes and then reboots the node. 'no_reboot' applies changes immediately without a reboot, failing if a reboot is required. 'staged' stages changes to apply on the next reboot. 'staged_if_needing_reboot' performs a dry-run and uses 'staged' mode if reboot is needed, 'auto' otherwise."
+  description = "Determines how changes to Talos machine configurations are applied. 'auto' (default) applies changes immediately and reboots if necessary. 'no_reboot' applies changes immediately without a reboot, failing if a reboot is required. 'staged' stages changes to apply on the next reboot. 'staged_if_needing_reboot' performs a dry-run and uses 'staged' mode if reboot is needed, 'auto' otherwise."
 
   validation {
-    condition     = contains(["auto", "reboot", "no_reboot", "staged", "staged_if_needing_reboot"], var.talos_machine_configuration_apply_mode)
-    error_message = "The talos_machine_configuration_apply_mode must be 'auto', 'reboot', 'no_reboot', 'staged', or 'staged_if_needing_reboot'."
+    condition     = contains(["auto", "no_reboot", "staged", "staged_if_needing_reboot"], var.talos_machine_configuration_apply_mode)
+    error_message = "The talos_machine_configuration_apply_mode must be 'auto', 'no_reboot', 'staged', or 'staged_if_needing_reboot'."
   }
 }
 

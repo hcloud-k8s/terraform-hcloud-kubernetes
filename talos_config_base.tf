@@ -71,32 +71,16 @@ locals {
     ]
   )
 
-  # Talos Discovery
-  talos_discovery_enabled = var.talos_discovery_kubernetes_enabled || var.talos_discovery_service_enabled
-
-  talos_discovery = {
-    enabled = local.talos_discovery_enabled
-    registries = {
-      kubernetes = { disabled = !var.talos_discovery_kubernetes_enabled }
-      service    = { disabled = !var.talos_discovery_service_enabled }
-    }
-  }
-
   # CRI Configuration
   talos_cri_config_patches = !var.talos_cri_discard_unpacked_layers ? [
     {
-      machine = {
-        files = [
-          {
-            path    = "/etc/cri/conf.d/20-customization.part"
-            op      = "create"
-            content = <<-EOT
-              [plugins."io.containerd.cri.v1.images"]
-                discard_unpacked_layers = false
-            EOT
-          }
-        ]
-      }
+      apiVersion = "v1alpha1"
+      kind       = "CRICustomizationConfig"
+      name       = "discard-unpacked-layers"
+      content    = <<-EOT
+        [plugins."io.containerd.cri.v1.images"]
+          discard_unpacked_layers = false
+      EOT
     }
   ] : []
 
@@ -183,6 +167,7 @@ locals {
   talos_resolver_config_patch = {
     apiVersion = "v1alpha1"
     kind       = "ResolverConfig"
+    hostDNS    = local.talos_host_dns
     nameservers = [
       for ns in local.talos_nameservers : {
         address = ns
@@ -222,6 +207,58 @@ locals {
     }
   }
 
+  # Container Registry Configuration
+  talos_registry_mirror_config_patches = [
+    for name, mirror in try(var.talos_registries.mirrors, {}) : merge(
+      {
+        apiVersion = "v1alpha1"
+        kind       = "RegistryMirrorConfig"
+        name       = name
+        endpoints = [
+          for endpoint in try(mirror.endpoints, []) : merge(
+            { url = endpoint },
+            try(mirror.overridePath, null) != null ? { overridePath = mirror.overridePath } : {}
+          )
+        ]
+      },
+      try(mirror.skipFallback, null) != null ? { skipFallback = mirror.skipFallback } : {}
+    )
+  ]
+
+  talos_registry_auth_config_patches = [
+    for name, registry in try(var.talos_registries.config, {}) : merge(
+      {
+        apiVersion = "v1alpha1"
+        kind       = "RegistryAuthConfig"
+        name       = name
+      },
+      try(registry.auth.username, null) != null ? { username = registry.auth.username } : {},
+      try(registry.auth.password, null) != null ? { password = registry.auth.password } : {},
+      try(registry.auth.auth, null) != null ? { auth = registry.auth.auth } : {},
+      try(registry.auth.identityToken, null) != null ? { identityToken = registry.auth.identityToken } : {}
+    ) if try(registry.auth, null) != null
+  ]
+
+  talos_registry_tls_config_patches = [
+    for name, registry in try(var.talos_registries.config, {}) : merge(
+      {
+        apiVersion = "v1alpha1"
+        kind       = "RegistryTLSConfig"
+        name       = name
+      },
+      try(registry.tls.clientIdentity, null) != null ? {
+        clientIdentity = {
+          cert = base64decode(registry.tls.clientIdentity.crt)
+          key  = base64decode(registry.tls.clientIdentity.key)
+        }
+      } : {},
+      try(registry.tls.ca, null) != null ? { ca = base64decode(registry.tls.ca) } : {},
+      try(registry.tls.insecureSkipVerify, null) != null ? {
+        insecureSkipVerify = registry.tls.insecureSkipVerify
+      } : {}
+    ) if try(registry.tls, null) != null
+  ]
+
   # Additional trusted CA certificates
   talos_trusted_certs_config_patches = var.talos_certificates != null ? [
     for name, chain in var.talos_certificates : {
@@ -244,88 +281,175 @@ locals {
     for patch in local.talos_user_data_config_patches : yamlencode(patch)
   ]) : null
 
+  # Kubelet Configuration
+  # Talos 1.14 removed extraMounts from the multi-document KubeletConfig. Keep the
+  # legacy kubelet document only when mounts are required, for example by Longhorn.
+  talos_legacy_kubelet_config_enabled = length(local.talos_kubelet_extra_mounts) > 0
+
+  talos_common_kubelet_extra_args = merge(
+    {
+      "cloud-provider"             = "external"
+      "rotate-server-certificates" = "true"
+    },
+    var.kubernetes_kubelet_extra_args
+  )
+
+  talos_common_kubelet_extra_config = {
+    shutdownGracePeriod             = "90s"
+    shutdownGracePeriodCriticalPods = "15s"
+  }
+
+  talos_legacy_kubelet_config = {
+    extraArgs                           = local.talos_common_kubelet_extra_args
+    extraConfig                         = local.talos_common_kubelet_extra_config
+    defaultRuntimeSeccompProfileEnabled = true
+    disableManifestsDirectory           = true
+    extraMounts                         = local.talos_kubelet_extra_mounts
+    image = (
+      var.kubernetes_kubelet_image != null ?
+      "${var.kubernetes_kubelet_image}:${var.kubernetes_version}" :
+      "ghcr.io/siderolabs/kubelet:${var.kubernetes_version}"
+    )
+  }
+
+  talos_kubelet_config_patch = merge(
+    {
+      defaultRuntimeSeccompProfileEnabled = true
+      apiVersion                          = "v1alpha1"
+      kind                                = "KubeletConfig"
+      extraArgs                           = local.talos_common_kubelet_extra_args
+      config                              = local.talos_common_kubelet_extra_config
+    },
+    var.kubernetes_kubelet_image != null ? {
+      image = "${var.kubernetes_kubelet_image}:${var.kubernetes_version}"
+    } : {}
+  )
+
+  talos_kubelet_config_patches = [
+    yamldecode(local.talos_legacy_kubelet_config_enabled ? yamlencode({
+      apiVersion = "v1alpha1"
+      kind       = "KubeletConfig"
+      "$patch"   = "delete"
+    }) : yamlencode(local.talos_kubelet_config_patch))
+  ]
+
+  # Kubernetes Node Configuration
+  talos_kube_node_config_patch = {
+    apiVersion = "v1alpha1"
+    kind       = "KubeNodeConfig"
+    nodeIP = {
+      validSubnets = [local.network_node_ipv4_cidr]
+    }
+  }
+
+  # Kernel Configuration
+  talos_kernel_module_config_patches = [
+    for module in coalesce(var.talos_kernel_modules, []) : merge(
+      {
+        apiVersion = "v1alpha1"
+        kind       = "KernelModuleConfig"
+        name       = module.name
+      },
+      module.parameters != null ? { parameters = module.parameters } : {}
+    )
+  ]
+
+  talos_sysctl_config_patch = {
+    apiVersion = "v1alpha1"
+    kind       = "SysctlConfig"
+    params = merge(
+      {
+        "net.core.somaxconn"                 = "65535"
+        "net.core.netdev_max_backlog"        = "4096"
+        "net.ipv6.conf.default.disable_ipv6" = "${var.talos_ipv6_enabled ? 0 : 1}"
+        "net.ipv6.conf.all.disable_ipv6"     = "${var.talos_ipv6_enabled ? 0 : 1}"
+      },
+      var.talos_sysctls_extra_args
+    )
+  }
+
+  # Kubernetes Network Configuration
+  talos_kube_network_config_patch = {
+    apiVersion     = "v1alpha1"
+    kind           = "KubeNetworkConfig"
+    dnsDomain      = var.cluster_domain
+    podSubnets     = [local.network_pod_ipv4_cidr]
+    serviceSubnets = [local.network_service_ipv4_cidr]
+  }
+
+  talos_kube_proxy_config_patch = merge(
+    {
+      apiVersion = "v1alpha1"
+      kind       = "KubeProxyConfig"
+      enabled    = !var.cilium_kube_proxy_replacement_enabled
+    },
+    var.kubernetes_proxy_image != null ? {
+      image = "${var.kubernetes_proxy_image}:${var.kubernetes_version}"
+    } : {}
+  )
+
+  talos_kube_flannel_config_delete_patch = {
+    apiVersion = "v1alpha1"
+    kind       = "KubeFlannelCNIConfig"
+    "$patch"   = "delete"
+  }
+
+  talos_discovery_service_config_patches = var.talos_discovery_service_enabled ? [] : [
+    {
+      apiVersion = "v1alpha1"
+      kind       = "DiscoveryServiceConfig"
+      name       = "default"
+      "$patch"   = "delete"
+    }
+  ]
+
   # Talos Common Config
   talos_common_config_patches = concat(
     [{
-      machine = {
-        certSANs = local.talos_certificate_san
-        kubelet = merge(
-          {
-            extraArgs = merge(
-              {
-                "cloud-provider"             = "external"
-                "rotate-server-certificates" = true
-              },
-              var.kubernetes_kubelet_extra_args
-            )
-            extraConfig = {
-              shutdownGracePeriod             = "90s"
-              shutdownGracePeriodCriticalPods = "15s"
-            }
-            extraMounts = local.talos_kubelet_extra_mounts
-            nodeIP = {
-              validSubnets = [local.network_node_ipv4_cidr]
-            }
-          },
-          var.kubernetes_kubelet_image != null ? {
-            image = "${var.kubernetes_kubelet_image}:${var.kubernetes_version}"
-          } : {}
-        )
-        kernel = {
-          modules = var.talos_kernel_modules
-        }
-        sysctls = merge(
-          {
-            "net.core.somaxconn"                 = "65535"
-            "net.core.netdev_max_backlog"        = "4096"
-            "net.ipv6.conf.default.disable_ipv6" = "${var.talos_ipv6_enabled ? 0 : 1}"
-            "net.ipv6.conf.all.disable_ipv6"     = "${var.talos_ipv6_enabled ? 0 : 1}"
-          },
-          var.talos_sysctls_extra_args
-        )
-        registries = var.talos_registries
-        features = {
-          hostDNS = local.talos_host_dns
-        }
-        logging = {
-          destinations = var.talos_logging_destinations
-        }
-      }
-      cluster = {
-        network = {
-          dnsDomain      = var.cluster_domain
-          podSubnets     = [local.network_pod_ipv4_cidr]
-          serviceSubnets = [local.network_service_ipv4_cidr]
-          cni            = { name = "none" }
-        }
-        proxy = merge(
-          {
-            disabled = var.cilium_kube_proxy_replacement_enabled
-          },
-          var.kubernetes_proxy_image != null ? {
-            image = "${var.kubernetes_proxy_image}:${var.kubernetes_version}"
-          } : {}
-        )
-        discovery = local.talos_discovery
-      }
+      machine = merge(
+        {
+          certSANs = local.talos_certificate_san
+          logging = {
+            destinations = var.talos_logging_destinations
+          }
+        },
+        local.talos_legacy_kubelet_config_enabled ? {
+          kubelet = local.talos_legacy_kubelet_config
+        } : {}
+      )
     }],
     local.talos_system_volume_config_patches,
     [local.talos_resolver_config_patch],
     [local.talos_time_sync_config_patch],
+    local.talos_registry_mirror_config_patches,
+    local.talos_registry_auth_config_patches,
+    local.talos_registry_tls_config_patches,
     local.talos_static_host_config_patches,
     local.talos_trusted_certs_config_patches,
-    local.talos_cri_config_patches
+    local.talos_cri_config_patches,
+    local.talos_kubelet_config_patches,
+    [local.talos_kube_node_config_patch],
+    local.talos_kernel_module_config_patches,
+    [local.talos_sysctl_config_patch],
+    [local.talos_kube_network_config_patch],
+    [local.talos_kube_flannel_config_delete_patch],
+    local.talos_discovery_service_config_patches
   )
 
   talos_cloud_config_patches = concat(
     local.talos_common_config_patches,
     [
       {
-        machine = {
-          install = {
-            image           = local.talos_cloud_installer_image_url
-            extraKernelArgs = var.talos_extra_kernel_args
+        apiVersion = "v1alpha1"
+        kind       = "UnattendedInstallConfig"
+        installer = {
+          image = local.talos_cloud_installer_image_url
+        }
+        provisioning = {
+          diskSelector = {
+            match = "disk.dev_path == \"/dev/sda\""
           }
+          wipe = false
         }
       }
     ],

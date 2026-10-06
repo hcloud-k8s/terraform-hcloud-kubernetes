@@ -3,13 +3,19 @@ locals {
   autoscaler_nodepool_talos_config_patch = {
     for nodepool in local.cluster_autoscaler_nodepools : nodepool.name => [
       {
+        apiVersion  = "v1alpha1"
+        kind        = "KubeNodeConfig"
+        labels      = nodepool.labels
+        annotations = nodepool.annotations
+        taints = {
+          for taint in nodepool.taints : taint.key => "${taint.value}:${taint.effect}"
+        }
+      },
+      yamldecode(local.talos_legacy_kubelet_config_enabled ? yamlencode({
         machine = {
-          nodeLabels      = nodepool.labels
-          nodeAnnotations = nodepool.annotations
           kubelet = {
             extraConfig = merge(
               {
-                registerWithTaints = nodepool.taints
                 systemReserved = {
                   cpu               = "100m"
                   memory            = "300Mi"
@@ -25,7 +31,25 @@ locals {
             )
           }
         }
-      }
+        }) : yamlencode({
+        apiVersion = "v1alpha1"
+        kind       = "KubeletConfig"
+        config = merge(
+          {
+            systemReserved = {
+              cpu               = "100m"
+              memory            = "300Mi"
+              ephemeral-storage = "1Gi"
+            }
+            kubeReserved = {
+              cpu               = "100m"
+              memory            = "350Mi"
+              ephemeral-storage = "1Gi"
+            }
+          },
+          var.kubernetes_kubelet_extra_config
+        )
+      }))
     ]
   }
 }
