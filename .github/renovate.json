@@ -36,7 +36,7 @@
       "matchPackageNames": [
         "cluster-autoscaler"
       ],
-      "allowedVersions": "<9.54.0"
+      "allowedVersions": ">=9.54.0"
     },
     {
       "description": "Keep Gateway API on the version supported by Cilium",
