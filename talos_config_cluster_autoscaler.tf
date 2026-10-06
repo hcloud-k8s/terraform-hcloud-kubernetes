@@ -1,8 +1,8 @@
 locals {
   # Autoscaler Config
   autoscaler_nodepool_talos_config_patch = {
-    for nodepool in local.cluster_autoscaler_nodepools : nodepool.name => [
-      {
+    for nodepool in local.cluster_autoscaler_nodepools : nodepool.name => concat(
+      [{
         apiVersion  = "v1alpha1"
         kind        = "KubeNodeConfig"
         labels      = nodepool.labels
@@ -10,8 +10,8 @@ locals {
         taints = {
           for taint in nodepool.taints : taint.key => "${taint.value}:${taint.effect}"
         }
-      },
-      yamldecode(local.talos_legacy_kubelet_config_enabled ? yamlencode({
+      }],
+      local.talos_legacy_kubelet_config_enabled ? [{
         machine = {
           kubelet = {
             extraConfig = merge(
@@ -31,7 +31,8 @@ locals {
             )
           }
         }
-        }) : yamlencode({
+      }] : [],
+      local.talos_legacy_kubelet_config_enabled ? [] : [{
         apiVersion = "v1alpha1"
         kind       = "KubeletConfig"
         config = merge(
@@ -49,8 +50,8 @@ locals {
           },
           var.kubernetes_kubelet_extra_config
         )
-      }))
-    ]
+      }]
+    )
   }
 }
 

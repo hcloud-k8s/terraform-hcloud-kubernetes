@@ -1,8 +1,8 @@
 locals {
   # Worker Config
   worker_talos_config_patches = {
-    for name, node in hcloud_server.worker : name => [
-      {
+    for name, node in hcloud_server.worker : name => concat(
+      [{
         apiVersion = "v1alpha1"
         kind       = "KubeNodeConfig"
         labels = merge(
@@ -13,8 +13,8 @@ locals {
         taints = {
           for taint in local.worker_nodepools_map[node.labels.nodepool].taints : taint.key => "${taint.value}:${taint.effect}"
         }
-      },
-      yamldecode(local.talos_legacy_kubelet_config_enabled ? yamlencode({
+      }],
+      local.talos_legacy_kubelet_config_enabled ? [{
         machine = {
           kubelet = {
             extraConfig = merge(
@@ -34,7 +34,8 @@ locals {
             )
           }
         }
-        }) : yamlencode({
+      }] : [],
+      local.talos_legacy_kubelet_config_enabled ? [] : [{
         apiVersion = "v1alpha1"
         kind       = "KubeletConfig"
         config = merge(
@@ -52,14 +53,14 @@ locals {
           },
           var.kubernetes_kubelet_extra_config
         )
-      })),
-      {
+      }],
+      [{
         apiVersion = "v1alpha1"
         kind       = "HostnameConfig"
         hostname   = name
         auto       = "off"
-      }
-    ]
+      }]
+    )
   }
 }
 

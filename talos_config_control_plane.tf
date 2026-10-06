@@ -143,46 +143,49 @@ locals {
               for taint in local.control_plane_nodepools_map[node.labels.nodepool].taints : taint.key => "${taint.value}:${taint.effect}"
             }
           )
-        },
-        yamldecode(local.talos_legacy_kubelet_config_enabled ? yamlencode({
-          machine = {
-            kubelet = {
-              extraConfig = merge(
-                {
-                  systemReserved = {
-                    cpu               = "250m"
-                    memory            = "300Mi"
-                    ephemeral-storage = "1Gi"
-                  }
-                  kubeReserved = {
-                    cpu               = "250m"
-                    memory            = "350Mi"
-                    ephemeral-storage = "1Gi"
-                  }
-                },
-                var.kubernetes_kubelet_extra_config
-              )
-            }
+        }
+      ],
+      local.talos_legacy_kubelet_config_enabled ? [{
+        machine = {
+          kubelet = {
+            extraConfig = merge(
+              {
+                systemReserved = {
+                  cpu               = "250m"
+                  memory            = "300Mi"
+                  ephemeral-storage = "1Gi"
+                }
+                kubeReserved = {
+                  cpu               = "250m"
+                  memory            = "350Mi"
+                  ephemeral-storage = "1Gi"
+                }
+              },
+              var.kubernetes_kubelet_extra_config
+            )
           }
-          }) : yamlencode({
-          apiVersion = "v1alpha1"
-          kind       = "KubeletConfig"
-          config = merge(
-            {
-              systemReserved = {
-                cpu               = "250m"
-                memory            = "300Mi"
-                ephemeral-storage = "1Gi"
-              }
-              kubeReserved = {
-                cpu               = "250m"
-                memory            = "350Mi"
-                ephemeral-storage = "1Gi"
-              }
-            },
-            var.kubernetes_kubelet_extra_config
-          )
-        })),
+        }
+      }] : [],
+      local.talos_legacy_kubelet_config_enabled ? [] : [{
+        apiVersion = "v1alpha1"
+        kind       = "KubeletConfig"
+        config = merge(
+          {
+            systemReserved = {
+              cpu               = "250m"
+              memory            = "300Mi"
+              ephemeral-storage = "1Gi"
+            }
+            kubeReserved = {
+              cpu               = "250m"
+              memory            = "350Mi"
+              ephemeral-storage = "1Gi"
+            }
+          },
+          var.kubernetes_kubelet_extra_config
+        )
+      }],
+      [
         merge(
           {
             apiVersion    = "v1alpha1"

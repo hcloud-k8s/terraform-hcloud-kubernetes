@@ -325,13 +325,14 @@ locals {
     } : {}
   )
 
-  talos_kubelet_config_patches = [
-    yamldecode(local.talos_legacy_kubelet_config_enabled ? yamlencode({
+  talos_kubelet_config_patches = concat(
+    local.talos_legacy_kubelet_config_enabled ? [{
       apiVersion = "v1alpha1"
       kind       = "KubeletConfig"
       "$patch"   = "delete"
-    }) : yamlencode(local.talos_kubelet_config_patch))
-  ]
+    }] : [],
+    local.talos_legacy_kubelet_config_enabled ? [] : [local.talos_kubelet_config_patch]
+  )
 
   # Kubernetes Node Configuration
   talos_kube_node_config_patch = {
