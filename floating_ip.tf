@@ -10,7 +10,7 @@ locals {
 resource "hcloud_floating_ip" "control_plane_ipv4" {
   count = local.control_plane_public_vip_ipv4_enabled && var.control_plane_public_vip_ipv4_id == null ? 1 : 0
 
-  name              = "${var.cluster_name}-control-plane-ipv4"
+  name              = "${local.cluster_resources_name}-control-plane-ipv4"
   type              = "ipv4"
   home_location     = hcloud_server.control_plane[local.talos_primary_node_name].location
   description       = "Control Plane Public VIP"

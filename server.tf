@@ -18,7 +18,7 @@ locals {
 resource "hcloud_server" "control_plane" {
   for_each = merge([
     for np_index in range(length(local.control_plane_nodepools)) : {
-      for cp_index in range(local.control_plane_nodepools[np_index].count) : "${var.cluster_name}-${local.control_plane_nodepools[np_index].name}-${cp_index + 1}" => {
+      for cp_index in range(local.control_plane_nodepools[np_index].count) : "${local.control_plane_nodepools[np_index].node_name}-${cp_index + 1}" => {
         server_type        = local.control_plane_nodepools[np_index].server_type,
         location           = local.control_plane_nodepools[np_index].location,
         backups            = local.control_plane_nodepools[np_index].backups,
@@ -82,15 +82,21 @@ resource "hcloud_server" "control_plane" {
 resource "hcloud_server" "worker" {
   for_each = merge([
     for np_index in range(length(local.worker_nodepools)) : {
-      for wkr_index in range(local.worker_nodepools[np_index].count) : "${var.cluster_name}-${local.worker_nodepools[np_index].name}-${wkr_index + 1}" => {
-        server_type        = local.worker_nodepools[np_index].server_type,
-        location           = local.worker_nodepools[np_index].location,
-        backups            = local.worker_nodepools[np_index].backups,
-        keep_disk          = local.worker_nodepools[np_index].keep_disk,
-        labels             = local.worker_nodepools[np_index].labels,
-        placement_group_id = local.worker_nodepools[np_index].placement_group ? hcloud_placement_group.worker["${var.cluster_name}-${local.worker_nodepools[np_index].name}-pg-${ceil((wkr_index + 1) / 10.0)}"].id : null,
-        subnet_id          = local.worker_nodepools[np_index].subnet != null ? hcloud_network_subnet.worker[local.worker_nodepools[np_index].name].id : hcloud_network_subnet.worker_shared.id,
-        ipv4_private       = local.worker_nodepools[np_index].subnet != null ? cidrhost(hcloud_network_subnet.worker[local.worker_nodepools[np_index].name].ip_range, wkr_index + 1) : null,
+      for wkr_index in range(local.worker_nodepools[np_index].count) : "${local.worker_nodepools[np_index].node_name}-${wkr_index + 1}" => {
+        server_type = local.worker_nodepools[np_index].server_type,
+        location    = local.worker_nodepools[np_index].location,
+        backups     = local.worker_nodepools[np_index].backups,
+        keep_disk   = local.worker_nodepools[np_index].keep_disk,
+        labels      = local.worker_nodepools[np_index].labels,
+        placement_group_id = local.worker_nodepools[np_index].placement_group ? hcloud_placement_group.worker[
+          local.worker_nodepools[np_index].placement_group_name != null
+          ? (ceil(local.worker_nodepools[np_index].count / 10.0) == 1
+            ? local.worker_nodepools[np_index].placement_group_name
+          : "${local.worker_nodepools[np_index].placement_group_name}-${ceil((wkr_index + 1) / 10.0)}")
+          : "${var.cluster_name}-${local.worker_nodepools[np_index].name}-pg-${ceil((wkr_index + 1) / 10.0)}"
+        ].id : null,
+        subnet_id    = local.worker_nodepools[np_index].subnet != null ? hcloud_network_subnet.worker[local.worker_nodepools[np_index].name].id : hcloud_network_subnet.worker_shared.id,
+        ipv4_private = local.worker_nodepools[np_index].subnet != null ? cidrhost(hcloud_network_subnet.worker[local.worker_nodepools[np_index].name].ip_range, wkr_index + 1) : null,
       }
     }
   ]...)

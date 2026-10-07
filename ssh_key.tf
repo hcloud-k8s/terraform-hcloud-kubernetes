@@ -3,7 +3,7 @@ resource "tls_private_key" "ssh_key" {
 }
 
 resource "hcloud_ssh_key" "this" {
-  name       = var.cluster_name
+  name       = local.ssh_key_name
   public_key = tls_private_key.ssh_key.public_key_openssh
 
   labels = {
