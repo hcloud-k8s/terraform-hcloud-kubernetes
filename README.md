@@ -469,7 +469,6 @@ The module installs a curated set of Kubernetes components through Talos manifes
 | Cert Manager Hetzner Webhook | `cert_manager_webhook_hetzner_enabled` | `false` |
 | Cilium Gateway API           | `cilium_gateway_api_enabled`           | `false` |
 | Cluster Autoscaler           | `cluster_autoscaler_enabled`           | `false` |
-| Ingress NGINX (deprecated)   | `ingress_nginx_enabled`                | `false` |
 | Longhorn                     | `longhorn_enabled`                     | `false` |
 
 
@@ -815,62 +814,6 @@ spec:
         - name: example-service
           port: 8080
 ```
-
-</details>
-
-<!-- Ingress Load Balancer -->
-<details>
-<summary><b>Ingress Load Balancer</b></summary>
-
-The ingress controller uses a default load balancer service to manage external traffic. For geo-redundancy and high availability, `ingress_load_balancer_pools` can be configured as an alternative, replacing the default load balancer with the specified pool of load balancers.
-
-##### Configuring Load Balancer Pools
-To replace the default load balancer, use `ingress_load_balancer_pools` in the Terraform configuration. This setup ensures high availability and geo-redundancy by distributing traffic from various locations across all targets in all regions.
-
-Example `kubernetes.tf` configuration:
-```hcl
-ingress_load_balancer_pools = [
-  {
-    name     = "lb-nbg"
-    location = "nbg1"
-    type     = "lb11"
-  },
-  {
-    name     = "lb-fsn"
-    location = "fsn1"
-    type     = "lb11"
-  }
-]
-```
-
-##### Local Traffic Optimization
-Configuring local traffic handling enhances network efficiency by reducing latency. Processing traffic closer to its source eliminates unnecessary routing delays, ensuring consistent performance for low-latency or region-sensitive applications.
-
-Example `kubernetes.tf` configuration:
-```hcl
-ingress_nginx_kind = "DaemonSet"
-ingress_nginx_service_external_traffic_policy = "Local"
-
-ingress_load_balancer_pools = [
-  {
-    name          = "regional-lb-nbg"
-    location      = "nbg1"
-    local_traffic = true
-  },
-  {
-    name          = "regional-lb-fsn"
-    location      = "fsn1"
-    local_traffic = true
-  }
-]
-```
-
-Key settings in this configuration:
-- `local_traffic`: Limits load balancer targets to nodes in the same geographic location as the load balancer, reducing data travel distances and keeping traffic within the region.
-- `ingress_nginx_service_external_traffic_policy` set to `Local`: Ensures external traffic is handled directly on the local node, avoiding extra network hops.
-- `ingress_nginx_kind` set to `DaemonSet`: Deploys an ingress controller instance on every node, enabling requests to be handled locally for faster response times.
-
-Topology-aware routing in ingress-nginx can optionally be enabled by setting the `ingress_nginx_topology_aware_routing` variable to `true`. This functionality routes traffic to the nearest upstream endpoints, enhancing efficiency for supported services. Note that this feature is only applicable to services that support topology-aware routing. For more information, refer to the [Kubernetes documentation](https://kubernetes.io/docs/concepts/services-networking/topology-aware-routing/).
 
 </details>
 
@@ -1391,11 +1334,11 @@ Changing software versions manually is not recommended. Component versions are s
 
 <!-- Roadmap -->
 ### 🧭 Roadmap
-* [ ] **Ingress NGINX [Retirement in March 2026](https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/)**<br>
+* [x] **Ingress NGINX [Retirement in March 2026](https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/)**<br>
   * [x] Add general support for Gateway API
   * [x] Integrate Cilium Gateway API
   * [x] Deprecate Ingress NGINX in v4
-  * [ ] Remove Ingress NGINX in v6
+  * [x] Remove Ingress NGINX in v6
 * [x] **Support for Hetzner [Dedicated Bare Metal Servers](https://www.hetzner.com/de/dedicated-rootserver/)**
 
 <!-- Support this Project -->

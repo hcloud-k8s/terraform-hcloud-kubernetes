@@ -48,7 +48,6 @@ locals {
     local.metrics_server_manifest != null ? [local.metrics_server_manifest] : [],
     local.cert_manager_manifest != null ? [local.cert_manager_manifest] : [],
     local.cert_manager_webhook_hetzner_manifest != null ? [local.cert_manager_webhook_hetzner_manifest] : [],
-    local.ingress_nginx_manifest != null ? [local.ingress_nginx_manifest] : [],
     local.cluster_autoscaler_manifest != null ? [local.cluster_autoscaler_manifest] : [],
     var.talos_extra_inline_manifests != null ? var.talos_extra_inline_manifests : [],
     local.rbac_manifest != null ? [local.rbac_manifest] : [],

@@ -35,7 +35,7 @@ data "helm_template" "longhorn" {
       }
       networkPolicies = {
         enabled = true
-        type    = "rke1" # rke1 = ingress-nginx
+        type    = ""
       }
       persistence = {
         defaultClass = var.longhorn_default_storage_class
