@@ -273,43 +273,72 @@ bare_metal_nodepools = [
 ]
 ```
 
-Example with an existing vSwitch and an explicit install disk:
-```hcl
-hcloud_vswitch_id = 12345
-
-bare_metal_nodepools = [
-  {
-    name         = "bare-metal"
-    architecture = "amd64"
-    servers = [
-      { number = 1234567, private_ipv4 = "10.0.88.2", install_disk = "ata-Samsung_SSD_870_ABC123" }
-    ]
-  }
-]
-```
-
 #### vSwitch Network
 
-The module creates the vSwitch and connects it to the Hetzner Cloud Network.
+The module creates the vSwitch and connects it to the Hetzner Cloud Network. To use an existing vSwitch instead, set:
+
+```hcl
+hcloud_vswitch_id = 12345
+```
 
 Each server needs a unique `private_ipv4` from the vSwitch subnet. For the default `10.0.0.0/16` network, the bare metal subnet can also be calculated with:
+
 ```sh
-echo 'cidrsubnet("10.0.0.0/16", 9, 176)' | tofu console
+echo "cidrsubnet(\"10.0.0.0/16\", 9, 176)" | tofu console
 "10.0.88.0/25"
 ```
 
 When bare metal servers are enabled for the first time, Cilium might need to be restarted to pick up the changed routing mode:
+
 ```sh
 kubectl -n kube-system rollout restart ds/cilium ds/cilium-envoy
 kubectl -n kube-system rollout restart deploy/cilium-operator
 ```
 
-#### Install Disk
+#### Install Disks and RAID
 
-If `install_disk` is omitted, the module automatically selects the first eligible non-removable disk. If set, `install_disk` must be a disk ID from `/dev/disk/by-id`.
+If `install_disks` and `install_raid_level` are omitted, the module automatically selects the first eligible non-removable disk. Explicit `install_disks` values must be disk IDs from `/dev/disk/by-id`:
 
-> [!WARNING]
-> Installing Talos is destructive. The selected install disk is discarded before Talos is written, and all other eligible install disks are wiped. Existing data on those disks is lost.
+```hcl
+servers = [
+  {
+    number        = 1234567
+    private_ipv4  = "10.0.88.2"
+    install_disks = ["ata-Samsung_SSD_870_ABC123"]
+  }
+]
+```
+
+Setting `install_raid_level` to `raid1` creates a bootable Linux MD RAID1 array with metadata format `1.0`. RAID1 requires at least two disks, and specifying multiple installation disks without `install_raid_level` is rejected.
+
+List the RAID members explicitly:
+
+```hcl
+servers = [
+  {
+    number             = 1234567
+    private_ipv4       = "10.0.88.2"
+    install_disks      = ["nvme-disk-1", "nvme-disk-2"]
+    install_raid_level = "raid1"
+  }
+]
+```
+
+Alternatively, omit `install_disks` to include every eligible disk automatically:
+
+```hcl
+servers = [
+  {
+    number             = 1234567
+    private_ipv4       = "10.0.88.2"
+    install_raid_level = "raid1"
+  }
+]
+```
+
+`preserve_other_disks` defaults to `false`. Set it to `true` on an individual server to preserve eligible disks that are not used for the Talos installation or RAID.
+
+> ⚠️ **Warning:** Installing Talos is destructive. By default, every eligible disk is wiped to prevent the server from booting a previous installation, and all data on those disks is lost. Preserved disks can still contain bootable installations, so the firmware might boot from them. RAID configuration is used only during initial provisioning; changing it does not reprovision existing servers.
 
 </details>
 

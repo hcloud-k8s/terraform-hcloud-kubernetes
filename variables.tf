@@ -464,9 +464,11 @@ variable "bare_metal_nodepools" {
     name         = string
     architecture = optional(string, "amd64")
     servers = list(object({
-      number       = number
-      private_ipv4 = string
-      install_disk = optional(string)
+      number               = number
+      private_ipv4         = string
+      install_disks        = optional(list(string))
+      install_raid_level   = optional(string)
+      preserve_other_disks = optional(bool, false)
     }))
     labels      = optional(map(string), {})
     annotations = optional(map(string), {})
@@ -525,10 +527,38 @@ variable "bare_metal_nodepools" {
   validation {
     condition = alltrue(flatten([
       for np in var.bare_metal_nodepools : [
-        for server in np.servers : server.install_disk == null || can(regex("^[0-9A-Za-z#+.:=@_-]+$", server.install_disk))
+        for server in np.servers : server.install_disks == null || (
+          length(server.install_disks) > 0 &&
+          length(server.install_disks) == length(distinct(server.install_disks)) &&
+          alltrue([
+            for install_disk in server.install_disks : can(regex("^[0-9A-Za-z#+.:=@_-]+$", install_disk))
+          ])
+        )
       ]
     ]))
-    error_message = "Bare metal server install_disk values must be disk IDs from /dev/disk/by-id and match ^[0-9A-Za-z#+.:=@_-]+$."
+    error_message = "Bare metal server install_disks must contain unique disk IDs from /dev/disk/by-id matching ^[0-9A-Za-z#+.:=@_-]+$ and must not be empty."
+  }
+
+  validation {
+    condition = alltrue(flatten([
+      for np in var.bare_metal_nodepools : [
+        for server in np.servers : server.install_raid_level == null || server.install_raid_level == "raid1"
+      ]
+    ]))
+    error_message = "Bare metal server install_raid_level must be raid1 when set."
+  }
+
+  validation {
+    condition = alltrue(flatten([
+      for np in var.bare_metal_nodepools : [
+        for server in np.servers : (
+          server.install_disks == null || length(server.install_disks) <= 1 || server.install_raid_level != null
+          ) && (
+          server.install_raid_level == null || server.install_disks == null || length(server.install_disks) >= 2
+        )
+      ]
+    ]))
+    error_message = "Multiple install_disks require install_raid_level, and an explicit RAID installation requires at least two install_disks."
   }
 
   validation {
