@@ -89,10 +89,10 @@ resource "hcloud_load_balancer_service" "kube_api" {
     retries  = 2
 
     http {
-      path         = "/version"
-      response     = "Status"
+      path         = "/readyz"
+      response     = "ok"
       tls          = true
-      status_codes = ["401"]
+      status_codes = ["200"]
     }
   }
 

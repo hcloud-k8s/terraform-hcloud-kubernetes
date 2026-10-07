@@ -79,7 +79,7 @@ variable "cluster_talosconfig_path" {
 variable "cluster_healthcheck_enabled" {
   type        = bool
   default     = true
-  description = "Determines whether are executed during cluster deployment and upgrade."
+  description = "Determines whether to wait for the Kubernetes API to become ready after cluster deployment and upgrades."
 }
 
 variable "cluster_delete_protection" {
