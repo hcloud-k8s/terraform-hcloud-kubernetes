@@ -64,22 +64,14 @@ locals {
     var.talos_extra_remote_manifests != null ? var.talos_extra_remote_manifests : []
   )
 
-  talos_kube_admission_control_config_patches = concat(
-    [for _ in slice([true], 0, min(length(var.kube_api_admission_control), 1)) : {
-      apiVersion = "v1alpha1"
-      kind       = "KubeAdmissionControlConfig"
-      name       = "PodSecurity"
-      "$patch"   = "delete"
-    }],
-    [
-      for plugin in var.kube_api_admission_control : {
-        apiVersion    = "v1alpha1"
-        kind          = "KubeAdmissionControlConfig"
-        name          = plugin.name
-        configuration = plugin.configuration
-      }
-    ]
-  )
+  talos_kube_admission_control_config_patches = [
+    for plugin in var.kube_api_admission_control : {
+      apiVersion    = "v1alpha1"
+      kind          = "KubeAdmissionControlConfig"
+      name          = plugin.name
+      configuration = plugin.configuration
+    }
+  ]
 
   talos_kube_inline_manifest_config_patches = [
     for manifest in local.talos_inline_manifests : {
