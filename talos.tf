@@ -82,7 +82,7 @@ locals {
 
   talos_staged_configuration_automatic_reboot_enabled = (
     var.talos_staged_configuration_automatic_reboot_enabled &&
-    contains(["staged", "staged_if_needing_reboot"], var.talos_machine_configuration_apply_mode)
+    var.talos_machine_configuration_apply_mode == "staged"
   )
 }
 

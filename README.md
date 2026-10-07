@@ -1100,23 +1100,12 @@ talos_cloud_arm64_image_selector      = "latest"
 <details>
 <summary><b>Talos Discovery Service</b></summary>
 
-Talos supports two node discovery mechanisms:
+Talos uses the public discovery service operated by Sidero Labs to discover cluster members, including when Kubernetes is unavailable. Nodes require outbound access to TCP port 443 to use it.
 
-- **Discovery Service Registry** (default): A public, external registry operated by Sidero Labs that works even when Kubernetes is unavailable. Nodes must have outbound access to TCP port 443 to communicate with it.  
-- **Kubernetes Registry**: Relies on Kubernetes Node metadata stored in etcd.
-
-This module uses the discovery service to perform additional health checks during Talos upgrades, Kubernetes upgrades, and Kubernetes manifest synchronization. If no discovery mechanism is enabled, these additional checks will be skipped.
-
-> ⚠️ **Important:** Kubernetes-based discovery is **incompatible by default** with Kubernetes **v1.32+** due to the `AuthorizeNodeWithSelectors` feature gate, which restricts access to Node metadata. This can cause broken discovery behavior, such as failing or incomplete results from `talosctl health` or `talosctl get members`.
-
-##### Example Configuration
+The service is enabled by default and can be disabled with:
 
 ```hcl
-# Disable Kubernetes-based discovery (deprecated in Kubernetes >= 1.32)
-talos_kubernetes_discovery_service_enabled = false
-
-# Enable the external Sidero Labs discovery service (default)
-talos_siderolabs_discovery_service_enabled = true
+talos_discovery_service_enabled = false
 ```
 
 For more details, refer to the [official Talos discovery guide](https://www.talos.dev/latest/talos-guides/discovery/).

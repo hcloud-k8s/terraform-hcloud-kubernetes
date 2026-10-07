@@ -24,8 +24,8 @@ locals {
   }
 
   bare_metal_talos_config_patches = {
-    for server_name, server in local.bare_metal_servers : server_name => [
-      {
+    for server_name, server in local.bare_metal_servers : server_name => concat(
+      [{
         apiVersion = "v1alpha1"
         kind       = "LinkConfig"
         name       = local.talos_public_link_name
@@ -54,47 +54,53 @@ locals {
             }
           ] : []
         )
-      },
-      {
-        apiVersion = "v1alpha1"
-        kind       = "VLANConfig"
-        name       = local.bare_metal_vswitch_link_name
-        parent     = local.talos_public_link_name
-        vlanID     = local.hcloud_vswitch_vlan_id
-        mtu        = 1400
-        addresses = [
-          {
-            address = "${server.private_ipv4}/${local.bare_metal_vswitch_ipv4_cidr_prefix_size}"
-          }
-        ]
-        routes = concat(
-          [
+        },
+        {
+          apiVersion = "v1alpha1"
+          kind       = "VLANConfig"
+          name       = local.bare_metal_vswitch_link_name
+          parent     = local.talos_public_link_name
+          vlanID     = local.hcloud_vswitch_vlan_id
+          mtu        = 1400
+          addresses = [
             {
-              destination = local.network_ipv4_cidr
-              gateway     = local.bare_metal_vswitch_ipv4_gateway
-              metric      = 512
+              address = "${server.private_ipv4}/${local.bare_metal_vswitch_ipv4_cidr_prefix_size}"
             }
-          ],
-          local.bare_metal_extra_routes
-        )
-      },
-      {
-        machine = {
-          nodeLabels = merge(
+          ]
+          routes = concat(
+            [
+              {
+                destination = local.network_ipv4_cidr
+                gateway     = local.bare_metal_vswitch_ipv4_gateway
+                metric      = 512
+              }
+            ],
+            local.bare_metal_extra_routes
+          )
+        },
+        {
+          apiVersion = "v1alpha1"
+          kind       = "KubeNodeConfig"
+          labels = merge(
             local.bare_metal_nodepools_map[server.nodepool].labels,
             {
               "nodeid"                             = tostring(server.number),
               "instance.hetzner.cloud/provided-by" = "robot"
             }
           )
-          nodeAnnotations = local.bare_metal_nodepools_map[server.nodepool].annotations
+          annotations = local.bare_metal_nodepools_map[server.nodepool].annotations
+          taints = {
+            for taint in local.bare_metal_nodepools_map[server.nodepool].taints : taint.key => "${taint.value}:${taint.effect}"
+          }
+      }],
+      local.talos_legacy_kubelet_config_enabled ? [{
+        machine = {
           kubelet = {
             extraArgs = {
               "provider-id" = "hrobot://${server.number}"
             }
             extraConfig = merge(
               {
-                registerWithTaints = local.bare_metal_nodepools_map[server.nodepool].taints
                 systemReserved = {
                   cpu               = "100m"
                   memory            = "300Mi"
@@ -110,14 +116,36 @@ locals {
             )
           }
         }
-      },
-      {
+      }] : [],
+      local.talos_legacy_kubelet_config_enabled ? [] : [{
+        apiVersion = "v1alpha1"
+        kind       = "KubeletConfig"
+        extraArgs = {
+          "provider-id" = "hrobot://${server.number}"
+        }
+        config = merge(
+          {
+            systemReserved = {
+              cpu               = "100m"
+              memory            = "300Mi"
+              ephemeral-storage = "1Gi"
+            }
+            kubeReserved = {
+              cpu               = "100m"
+              memory            = "350Mi"
+              ephemeral-storage = "1Gi"
+            }
+          },
+          var.kubernetes_kubelet_extra_config
+        )
+      }],
+      [{
         apiVersion = "v1alpha1"
         kind       = "HostnameConfig"
         hostname   = server.name
         auto       = "off"
-      }
-    ]
+      }]
+    )
   }
 }
 

@@ -279,7 +279,7 @@ variable "control_plane_private_vip_ipv4_enabled" {
 variable "kube_api_admission_control" {
   type        = list(any)
   default     = []
-  description = "List of admission control settings for the Kube API. If set, this overrides the default admission control."
+  description = "List of additional admission control settings for the Kubernetes API server."
 }
 
 variable "control_plane_nodepools" {
@@ -791,7 +791,12 @@ variable "talos_version" {
 variable "talos_schematic_id" {
   type        = string
   default     = null
-  description = "Specifies the Talos schematic ID used for selecting cloud image and installer versions. Bare metal servers always use generated metal schematics because their initial network configuration is server-specific. This has precedence over `talos_image_extensions` for cloud servers."
+  description = "Specifies the Talos schematic ID used for selecting cloud image and installer versions. Bare metal servers always use generated metal schematics because their initial network configuration is server-specific. This has precedence over `talos_image_extensions` for cloud servers. Extra kernel arguments must be included in the custom schematic instead of `talos_extra_kernel_args`."
+
+  validation {
+    condition     = var.talos_schematic_id == null || length(var.talos_extra_kernel_args) == 0
+    error_message = "talos_extra_kernel_args cannot be used with talos_schematic_id because the module cannot add kernel arguments to a custom schematic. Include the arguments in the custom schematic instead."
+  }
 }
 
 variable "talos_image_extensions" {
@@ -852,12 +857,6 @@ variable "talos_upgrade_stage" {
   description = "Stage the Talos upgrade to perform it after a reboot."
 }
 
-variable "talos_discovery_kubernetes_enabled" {
-  type        = bool
-  default     = false
-  description = "Enable or disable Kubernetes-based Talos discovery service. Deprecated as of Kubernetes v1.32, where the AuthorizeNodeWithSelectors feature gate is enabled by default."
-}
-
 variable "talos_discovery_service_enabled" {
   type        = bool
   default     = true
@@ -867,7 +866,7 @@ variable "talos_discovery_service_enabled" {
 variable "talos_cri_discard_unpacked_layers" {
   type        = bool
   default     = true
-  description = "Determines whether containerd discards unpacked image layers on all Talos nodes. Set to false to retain unpacked image layers. Attention: Changing this value forces all Talos nodes to reboot and should be performed with `talos_machine_configuration_apply_mode = \"staged\"`."
+  description = "Determines whether containerd discards unpacked image layers on all Talos nodes. Set to false to retain unpacked image layers. Changing this value restarts the CRI service on each node."
 }
 
 variable "talos_kubelet_extra_mounts" {
@@ -908,18 +907,18 @@ variable "talos_kernel_modules" {
 variable "talos_machine_configuration_apply_mode" {
   type        = string
   default     = "auto"
-  description = "Determines how changes to Talos machine configurations are applied. 'auto' (default) applies changes immediately and reboots if necessary. 'reboot' applies changes and then reboots the node. 'no_reboot' applies changes immediately without a reboot, failing if a reboot is required. 'staged' stages changes to apply on the next reboot. 'staged_if_needing_reboot' performs a dry-run and uses 'staged' mode if reboot is needed, 'auto' otherwise."
+  description = "Determines how changes to Talos machine configurations are applied. 'auto' (default) and 'no_reboot' apply changes immediately without rebooting the node. 'staged' persists changes for the next reboot."
 
   validation {
-    condition     = contains(["auto", "reboot", "no_reboot", "staged", "staged_if_needing_reboot"], var.talos_machine_configuration_apply_mode)
-    error_message = "The talos_machine_configuration_apply_mode must be 'auto', 'reboot', 'no_reboot', 'staged', or 'staged_if_needing_reboot'."
+    condition     = contains(["auto", "no_reboot", "staged"], var.talos_machine_configuration_apply_mode)
+    error_message = "The talos_machine_configuration_apply_mode must be 'auto', 'no_reboot', or 'staged'."
   }
 }
 
 variable "talos_staged_configuration_automatic_reboot_enabled" {
   type        = bool
   default     = true
-  description = "Determines whether nodes are rebooted automatically after Talos machine configuration changes are applied in 'staged' mode, or when 'staged_if_needing_reboot' resolves to 'staged' mode."
+  description = "Determines whether nodes are rebooted automatically after Talos machine configuration changes are applied in 'staged' mode."
 }
 
 variable "talos_sysctls_extra_args" {

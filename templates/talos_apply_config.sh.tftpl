@@ -21,32 +21,6 @@ for host in "$@"; do
 
     resolved_apply_mode="${apply_mode}"
 
-    if [ "$resolved_apply_mode" = "staged_if_needing_reboot" ]; then
-      printf '%s\n' "Checking whether a reboot is required on node: $host"
-
-      retry=1
-      until dry_run_output=$(talos_apply_config --nodes "$host" --file "$machine_config" --mode auto --dry-run 2>&1); do
-        talos_retry_or_exit retry
-      done
-
-      summary_line=$(printf '%s\n' "$dry_run_output" | sed -n '/^Dry run summary:$/ {n;p;q;}')
-      case "$summary_line" in
-        "Applied configuration with a reboot (skipped in dry-run).")
-          resolved_apply_mode="staged"
-          ;;
-        "Applied configuration without a reboot (skipped in dry-run).")
-          resolved_apply_mode="auto"
-          ;;
-        *)
-          printf '%s\n' "talosctl auto dry-run returned an unknown mode for node $host" >&2
-          printf '%s\n' "$dry_run_output" >&2
-          exit 1
-          ;;
-      esac
-    fi
-
-    printf '%s\n' "Resolved apply mode for node $host: $resolved_apply_mode"
-
     if [ "$resolved_apply_mode" = "no_reboot" ]; then
       resolved_apply_mode="no-reboot"
     fi

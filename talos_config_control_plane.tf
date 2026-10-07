@@ -1,13 +1,40 @@
 locals {
   talos_allow_scheduling_on_control_planes = coalesce(var.cluster_allow_scheduling_on_control_planes, (local.worker_sum + local.cluster_autoscaler_max_sum) == 0)
 
-  kube_api_oidc_configuration = var.oidc_enabled ? {
-    "oidc-issuer-url"     = var.oidc_issuer_url
-    "oidc-client-id"      = var.oidc_client_id
-    "oidc-username-claim" = var.oidc_username_claim
-    "oidc-groups-claim"   = var.oidc_groups_claim
-    "oidc-groups-prefix"  = var.oidc_groups_prefix
-  } : {}
+  talos_kube_authentication_config_patches = var.oidc_enabled ? [
+    {
+      apiVersion = "v1alpha1"
+      kind       = "KubeAuthenticationConfig"
+      configuration = {
+        anonymous = {
+          enabled = true
+          conditions = [
+            { path = "/livez" },
+            { path = "/readyz" },
+            { path = "/healthz" }
+          ]
+        }
+        jwt = [
+          {
+            issuer = {
+              url       = var.oidc_issuer_url
+              audiences = [var.oidc_client_id]
+            }
+            claimMappings = {
+              username = {
+                claim  = var.oidc_username_claim
+                prefix = var.oidc_username_claim == "email" ? "" : "${var.oidc_issuer_url}#"
+              }
+              groups = {
+                claim  = var.oidc_groups_claim
+                prefix = var.oidc_groups_prefix
+              }
+            }
+          }
+        ]
+      }
+    }
+  ] : []
 
   # Kubernetes Manifests for Talos
   talos_inline_manifests = concat(
@@ -37,80 +64,39 @@ locals {
     var.talos_extra_remote_manifests != null ? var.talos_extra_remote_manifests : []
   )
 
+  talos_kube_admission_control_config_patches = [
+    for plugin in var.kube_api_admission_control : {
+      apiVersion    = "v1alpha1"
+      kind          = "KubeAdmissionControlConfig"
+      name          = plugin.name
+      configuration = plugin.configuration
+    }
+  ]
+
+  talos_kube_inline_manifest_config_patches = [
+    for manifest in local.talos_inline_manifests : {
+      apiVersion = "v1alpha1"
+      kind       = "KubeInlineManifestConfig"
+      name       = manifest.name
+      manifest   = manifest.contents
+    }
+  ]
+
+  talos_kube_external_manifest_config_patches = [
+    for index, url in local.talos_manifests : {
+      apiVersion = "v1alpha1"
+      kind       = "KubeExternalManifestConfig"
+      name       = "external-manifest-${index + 1}"
+      url        = url
+    }
+  ]
+
   # Control Plane Config
   control_plane_talos_config_patches = {
     for name, node in hcloud_server.control_plane : name => concat(
       [
         {
-          machine = {
-            nodeLabels = merge(
-              local.talos_allow_scheduling_on_control_planes ? { "node.kubernetes.io/exclude-from-external-load-balancers" = { "$patch" = "delete" } } : {},
-              local.control_plane_nodepools_map[node.labels.nodepool].labels,
-              { "nodeid" = tostring(node.id) }
-            )
-            nodeAnnotations = local.control_plane_nodepools_map[node.labels.nodepool].annotations
-            nodeTaints = {
-              for taint in local.control_plane_nodepools_map[node.labels.nodepool].taints : taint.key => "${taint.value}:${taint.effect}"
-            }
-            kubelet = {
-              extraConfig = merge(
-                {
-                  registerWithTaints = local.control_plane_nodepools_map[node.labels.nodepool].taints
-                  systemReserved = {
-                    cpu               = "250m"
-                    memory            = "300Mi"
-                    ephemeral-storage = "1Gi"
-                  }
-                  kubeReserved = {
-                    cpu               = "250m"
-                    memory            = "350Mi"
-                    ephemeral-storage = "1Gi"
-                  }
-                },
-                var.kubernetes_kubelet_extra_config
-              )
-            }
-            features = {
-              kubernetesTalosAPIAccess = {
-                enabled = true
-                allowedRoles = [
-                  "os:reader",
-                  "os:etcd:backup"
-                ]
-                allowedKubernetesNamespaces = ["kube-system"]
-              }
-            }
-          }
           cluster = {
-            allowSchedulingOnControlPlanes = local.talos_allow_scheduling_on_control_planes
-            coreDNS = {
-              disabled = !var.talos_coredns_enabled
-            }
-            apiServer = merge(
-              {
-                admissionControl = var.kube_api_admission_control
-                certSANs         = local.talos_certificate_san
-                extraArgs = merge(
-                  { "enable-aggregator-routing" = true },
-                  local.kube_api_oidc_configuration,
-                  var.kube_api_extra_args
-                )
-              },
-              var.kubernetes_apiserver_image != null ? {
-                image = "${var.kubernetes_apiserver_image}:${var.kubernetes_version}"
-              } : {}
-            )
-            controllerManager = merge(
-              {
-                extraArgs = {
-                  "cloud-provider" = "external"
-                  "bind-address"   = "0.0.0.0"
-                }
-              },
-              var.kubernetes_controller_manager_image != null ? {
-                image = "${var.kubernetes_controller_manager_image}:${var.kubernetes_version}"
-              } : {}
-            )
             etcd = merge(
               {
                 advertisedSubnets = [hcloud_network_subnet.control_plane.ip_range]
@@ -122,25 +108,129 @@ locals {
                 image = var.kubernetes_etcd_image
               } : {}
             )
-            scheduler = merge(
-              {
-                extraArgs = {
-                  "bind-address" = "0.0.0.0"
-                }
-              },
-              var.kubernetes_scheduler_image != null ? {
-                image = "${var.kubernetes_scheduler_image}:${var.kubernetes_version}"
-              } : {}
-            )
             adminKubeconfig = {
               certLifetime = "87600h"
             }
-            inlineManifests = local.talos_inline_manifests
             externalCloudProvider = {
-              enabled   = true
-              manifests = local.talos_manifests
+              enabled = true
             }
           }
+        },
+        {
+          apiVersion = "v1alpha1"
+          kind       = "KubeNodeConfig"
+          labels = merge(
+            local.talos_allow_scheduling_on_control_planes ? {
+              "node.kubernetes.io/exclude-from-external-load-balancers" = { "$patch" = "delete" }
+            } : {},
+            local.control_plane_nodepools_map[node.labels.nodepool].labels,
+            { "nodeid" = tostring(node.id) }
+          )
+          annotations = local.control_plane_nodepools_map[node.labels.nodepool].annotations
+          taints = merge(
+            local.talos_allow_scheduling_on_control_planes ? {
+              "node-role.kubernetes.io/control-plane" = { "$patch" = "delete" }
+            } : {},
+            {
+              for taint in local.control_plane_nodepools_map[node.labels.nodepool].taints : taint.key => "${taint.value}:${taint.effect}"
+            }
+          )
+        }
+      ],
+      local.talos_legacy_kubelet_config_enabled ? [{
+        machine = {
+          kubelet = {
+            extraConfig = merge(
+              {
+                systemReserved = {
+                  cpu               = "250m"
+                  memory            = "300Mi"
+                  ephemeral-storage = "1Gi"
+                }
+                kubeReserved = {
+                  cpu               = "250m"
+                  memory            = "350Mi"
+                  ephemeral-storage = "1Gi"
+                }
+              },
+              var.kubernetes_kubelet_extra_config
+            )
+          }
+        }
+      }] : [],
+      local.talos_legacy_kubelet_config_enabled ? [] : [{
+        apiVersion = "v1alpha1"
+        kind       = "KubeletConfig"
+        config = merge(
+          {
+            systemReserved = {
+              cpu               = "250m"
+              memory            = "300Mi"
+              ephemeral-storage = "1Gi"
+            }
+            kubeReserved = {
+              cpu               = "250m"
+              memory            = "350Mi"
+              ephemeral-storage = "1Gi"
+            }
+          },
+          var.kubernetes_kubelet_extra_config
+        )
+      }],
+      [
+        merge(
+          {
+            apiVersion    = "v1alpha1"
+            kind          = "KubeAPIServerConfig"
+            certExtraSANs = local.talos_certificate_san
+            extraArgs = merge(
+              { "enable-aggregator-routing" = "true" },
+              var.kube_api_extra_args
+            )
+          },
+          var.kubernetes_apiserver_image != null ? {
+            image = "${var.kubernetes_apiserver_image}:${var.kubernetes_version}"
+          } : {}
+        ),
+        merge(
+          {
+            apiVersion = "v1alpha1"
+            kind       = "KubeControllerManagerConfig"
+            extraArgs = {
+              "cloud-provider" = "external"
+              "bind-address"   = "0.0.0.0"
+            }
+          },
+          var.kubernetes_controller_manager_image != null ? {
+            image = "${var.kubernetes_controller_manager_image}:${var.kubernetes_version}"
+          } : {}
+        ),
+        merge(
+          {
+            apiVersion = "v1alpha1"
+            kind       = "KubeSchedulerConfig"
+            extraArgs = {
+              "bind-address" = "0.0.0.0"
+            }
+          },
+          var.kubernetes_scheduler_image != null ? {
+            image = "${var.kubernetes_scheduler_image}:${var.kubernetes_version}"
+          } : {}
+        ),
+        {
+          apiVersion = "v1alpha1"
+          kind       = "KubeCoreDNSConfig"
+          enabled    = var.talos_coredns_enabled
+        },
+        local.talos_kube_proxy_config_patch,
+        {
+          apiVersion = "v1alpha1"
+          kind       = "KubeTalosAPIAccessConfig"
+          allowedRoles = [
+            "os:reader",
+            "os:etcd:backup"
+          ]
+          allowedKubernetesNamespaces = ["kube-system"]
         },
         {
           apiVersion = "v1alpha1"
@@ -149,6 +239,10 @@ locals {
           auto       = "off"
         }
       ],
+      local.talos_kube_admission_control_config_patches,
+      local.talos_kube_authentication_config_patches,
+      local.talos_kube_inline_manifest_config_patches,
+      local.talos_kube_external_manifest_config_patches,
       local.control_plane_public_vip_ipv4_enabled ? [{
         apiVersion = "v1alpha1"
         kind       = "HCloudVIPConfig"
