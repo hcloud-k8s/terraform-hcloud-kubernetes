@@ -2,12 +2,14 @@ locals {
   bare_metal_servers = length(local.bare_metal_nodepools) > 0 ? merge([
     for np in local.bare_metal_nodepools : {
       for server in np.servers : "${var.cluster_name}-${np.name}-${server.number}" => {
-        nodepool     = np.name,
-        name         = "${var.cluster_name}-${np.name}-${server.number}",
-        architecture = np.architecture,
-        number       = server.number,
-        private_ipv4 = server.private_ipv4,
-        install_disk = server.install_disk,
+        nodepool             = np.name,
+        name                 = "${var.cluster_name}-${np.name}-${server.number}",
+        architecture         = np.architecture,
+        number               = server.number,
+        private_ipv4         = server.private_ipv4,
+        install_disks        = server.install_disks,
+        install_raid_level   = server.install_raid_level,
+        preserve_other_disks = server.preserve_other_disks,
       }
     }
   ]...) : {}
@@ -455,7 +457,7 @@ resource "terraform_data" "bare_metal_server" {
       bash <<'SCRIPT'
       set -euo pipefail
 
-      for command in blkdiscard blockdev cat dd find grep head lsblk partprobe readlink sed sgdisk shutdown sort sync udevadm wget wipefs zstd; do
+      for command in blkdiscard blockdev cat dd find grep head lsblk mdadm partprobe readlink sed sgdisk shutdown sort sync udevadm wget wipefs zstd; do
         if ! command -v "$command" >/dev/null 2>&1; then
           printf 'ERROR: required command not found: %s\n' "$command" >&2
           exit 1
@@ -544,58 +546,120 @@ resource "terraform_data" "bare_metal_server" {
         sync
       }
 
-      configured_install_disk_id='${each.value.install_disk != null ? each.value.install_disk : ""}'
+      configured_install_disk_ids=(
+      %{for install_disk in coalesce(each.value.install_disks, [])~}
+        '${install_disk}'
+      %{endfor~}
+      )
+      install_raid_level='${each.value.install_raid_level != null ? each.value.install_raid_level : ""}'
+      preserve_other_disks='${each.value.preserve_other_disks}'
       mapfile -t install_disks < <(get_install_disks)
 
       if [ "$${#install_disks[@]}" -eq 0 ]; then
-        printf '%s\n' 'ERROR: Could not detect install disk' >&2
+        printf '%s\n' 'ERROR: Could not detect any eligible install disks' >&2
         exit 1
       fi
 
-      if [ -n "$configured_install_disk_id" ]; then
-        case "$configured_install_disk_id" in
-          */*)
-            printf 'ERROR: install_disk must be a disk ID from /dev/disk/by-id, got %s\n' "$configured_install_disk_id" >&2
-            exit 1
-            ;;
-        esac
+      selected_disks=()
 
-        install_disk="$(readlink -f "/dev/disk/by-id/$configured_install_disk_id" 2>/dev/null || true)"
-        if [ -z "$install_disk" ]; then
-          printf 'ERROR: configured install_disk was not found in /dev/disk/by-id: %s\n' "$configured_install_disk_id" >&2
+      if [ "$${#configured_install_disk_ids[@]}" -gt 0 ]; then
+        for configured_install_disk_id in "$${configured_install_disk_ids[@]}"; do
+          install_disk="$(readlink -f "/dev/disk/by-id/$configured_install_disk_id" 2>/dev/null || true)"
+          if [ -z "$install_disk" ]; then
+            printf 'ERROR: configured install disk was not found in /dev/disk/by-id: %s\n' "$configured_install_disk_id" >&2
+            exit 1
+          fi
+
+          if ! printf '%s\n' "$${install_disks[@]}" | grep -Fxq "$install_disk"; then
+            printf 'ERROR: configured install disk is not eligible: %s (%s)\n' "$configured_install_disk_id" "$install_disk" >&2
+            exit 1
+          fi
+
+          if printf '%s\n' "$${selected_disks[@]}" | grep -Fxq "$install_disk"; then
+            printf 'ERROR: configured install disk IDs resolve to the same device: %s (%s)\n' "$configured_install_disk_id" "$install_disk" >&2
+            exit 1
+          fi
+
+          selected_disks+=("$install_disk")
+        done
+      elif [ -n "$install_raid_level" ]; then
+        selected_disks=("$${install_disks[@]}")
+      else
+        selected_disks=("$${install_disks[0]}")
+      fi
+
+      case "$install_raid_level" in
+        '')
+          if [ "$${#selected_disks[@]}" -ne 1 ]; then
+            printf 'ERROR: multiple install disks require install_raid_level, selected %s disks\n' "$${#selected_disks[@]}" >&2
+            exit 1
+          fi
+          ;;
+        raid1)
+          if [ "$${#selected_disks[@]}" -lt 2 ]; then
+            printf 'ERROR: RAID1 requires at least two eligible install disks, selected %s\n' "$${#selected_disks[@]}" >&2
+            exit 1
+          fi
+          ;;
+        *)
+          printf 'ERROR: unsupported install RAID level: %s\n' "$install_raid_level" >&2
+          exit 1
+          ;;
+      esac
+
+      for install_disk in "$${selected_disks[@]}"; do
+        if [ -z "$install_disk" ] || [ ! -b "$install_disk" ]; then
+          printf 'ERROR: selected install disk is not a block device: %s\n' "$install_disk" >&2
           exit 1
         fi
-      else
-        install_disk="$${install_disks[0]}"
-      fi
-
-      if [ -z "$install_disk" ] || [ ! -b "$install_disk" ]; then
-        printf '%s\n' 'ERROR: Could not detect install disk' >&2
-        exit 1
-      fi
-
-      if ! printf '%s\n' "$${install_disks[@]}" | grep -Fxq "$install_disk"; then
-        printf 'ERROR: configured install disk is not an eligible install disk: %s\n' "$install_disk" >&2
-        exit 1
-      fi
+      done
 
       for disk in "$${install_disks[@]}"; do
-        if [ "$disk" = "$install_disk" ]; then
+        if printf '%s\n' "$${selected_disks[@]}" | grep -Fxq "$disk"; then
           print_disk "select" "$disk"
+        elif [ "$preserve_other_disks" = "true" ]; then
+          print_disk "preserve" "$disk"
         else
           print_disk "deboot" "$disk"
         fi
       done
 
+      mdadm --stop --scan >/dev/null 2>&1 || true
+
       for disk in "$${install_disks[@]}"; do
-        [ "$disk" != "$install_disk" ] || continue
+        if [ "$preserve_other_disks" = "true" ] && ! printf '%s\n' "$${selected_disks[@]}" | grep -Fxq "$disk"; then
+          continue
+        fi
+
         wipe_disk "$disk"
       done
 
-      wipe_disk "$install_disk"
+      install_target="$${selected_disks[0]}"
+
+      if [ "$install_raid_level" = "raid1" ]; then
+        install_target=/dev/md0
+
+        printf 'create raid=%s level=raid1 members=%s metadata=1.0\n' \
+          "$install_target" \
+          "$${#selected_disks[@]}"
+
+        mdadm \
+          --create "$install_target" \
+          --name=boot \
+          --homehost=talos \
+          --run \
+          --assume-clean \
+          --level=1 \
+          --raid-devices="$${#selected_disks[@]}" \
+          --metadata=1.0 \
+          "$${selected_disks[@]}"
+
+        udevadm settle
+        mdadm --detail "$install_target"
+      fi
 
       printf 'write disk=%s talos=%s schematic=%s\n' \
-        "$install_disk" \
+        "$install_target" \
         '${var.talos_version}' \
         '${local.talos_metal_schematic_ids[each.key]}'
 
@@ -609,11 +673,16 @@ resource "terraform_data" "bare_metal_server" {
         --output-document=- \
         "${local.talos_metal_disk_image_urls[each.key]}" \
       | zstd -dc \
-      | dd of="$install_disk" bs=1M iflag=fullblock oflag=direct conv=fsync status=none
+      | dd of="$install_target" bs=1M iflag=fullblock oflag=direct conv=fsync status=none
 
       sync
 
-      printf 'done disk=%s talos=%s\n' "$install_disk" '${var.talos_version}'
+      if [ "$install_raid_level" = "raid1" ]; then
+        mdadm --detail "$install_target"
+        cat /proc/mdstat
+      fi
+
+      printf 'done disk=%s talos=%s\n' "$install_target" '${var.talos_version}'
       printf '%s\n' 'reboot scheduled'
 
       shutdown -r +1
