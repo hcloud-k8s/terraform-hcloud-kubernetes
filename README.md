@@ -4,7 +4,7 @@
   <h1>Hcloud Kubernetes</h1>
 
   <p>
-    Terraform Module to deploy Kubernetes on Hetzner Cloud! 
+    Terraform Module to deploy Kubernetes on Hetzner Cloud!
   </p>
 
 <!-- Badges -->
@@ -555,7 +555,7 @@ More information can be found in [the Cilium docs.](https://docs.cilium.io/en/st
 
 #### Cilium Transparent Encryption
 
-This module enables [Cilium Transparent Encryption](https://cilium.io/use-cases/transparent-encryption/) feature by default.  
+This module enables [Cilium Transparent Encryption](https://cilium.io/use-cases/transparent-encryption/) feature by default.
 
 All pod network traffic is encrypted using WireGuard (Default) or  protocols, includes automatic key rotation and efficient in-kernel encryption, covering all traffic types.
 
@@ -846,6 +846,101 @@ spec:
 
 </details>
 
+<!-- Hcloud CSI -->
+<details>
+<summary><b>Hcloud CSI</b></summary>
+
+The Hetzner Cloud Container Storage Interface (CSI) driver can be flexibly configured through the `hcloud_csi_storage_classes` variable. You can define multiple storage classes for your cluster:
+
+* **name:** The name of the StorageClass (string, required).
+* **encrypted:** Enable LUKS encryption for volumes (bool, required).
+* **defaultStorageClass:** Set this class as the default (optional, bool, defaults to `false`).
+* **reclaimPolicy:** The Kubernetes reclaim policy (`Delete` or `Retain`, optional, defaults to `Delete`).
+* **extraParameters:** Additional parameters for the StorageClass (optional map).
+
+**Example:**
+
+```hcl
+hcloud_csi_storage_classes = [
+  {
+    name                = "hcloud-volumes"
+    encrypted           = false
+    defaultStorageClass = true
+  },
+  {
+    name                = "hcloud-volumes-encrypted-xfs"
+    encrypted           = true
+    reclaimPolicy       = "Retain"
+    extraParameters     = {
+      "csi.storage.k8s.io/fstype" = "xfs"
+      "fsFormatOption"            = "-i nrext64=1"
+    }
+  }
+]
+```
+
+**Other settings:**
+
+* **hcloud\_csi\_encryption\_passphrase:**
+  Optionally provide a custom encryption passphrase for LUKS-encrypted storage classes.
+
+  ```hcl
+  hcloud_csi_encryption_passphrase = "<secret-passphrase>"
+  ```
+
+**Storage Class Immutability:**
+StorageClasses created by the Hcloud CSI driver are immutable. To change parameters after creation, you must either edit the StorageClass directly with `kubectl`, or delete it from both Terraform state and Kubernetes, then let this module recreate it.
+
+For more details, see the [HCloud CSI Driver documentation](https://github.com/hetznercloud/csi-driver/tree/main/docs/kubernetes).
+
+</details>
+
+
+<!-- Longhorn -->
+<details>
+<summary><b>Longhorn</b></summary>
+
+Longhorn is a lightweight, reliable, and easy-to-use distributed block storage system for Kubernetes.
+It is fully independent from the Hetzner Cloud CSI driver.
+
+You can enable Longhorn and configure it as the default StorageClass for your cluster via module variables:
+
+* **Enable Longhorn:**
+  Set `longhorn_enabled` to `true` to deploy Longhorn in your cluster.
+
+* **Default StorageClass:**
+  Set `longhorn_default_storage_class` to `true` if you want Longhorn to be the default StorageClass.
+
+**Example:**
+
+```hcl
+longhorn_enabled               = true
+longhorn_default_storage_class = true
+```
+
+**Migrating existing Longhorn disks from `/var/lib/longhorn` to `/var/mnt/longhorn`:**
+
+Starting with module version 6, this module follows the [Longhorn guidance for Talos Linux v1.10 and later](https://longhorn.io/docs/1.13.0/advanced-resources/os-distro-specific/talos-linux-support/#from-talos-linux-v110x-onwards), which recommends `UserVolumeConfig` and `/var/mnt/longhorn` instead of the legacy `/var/lib/longhorn` data path. Existing disks are not migrated automatically, so version 6 keeps the legacy path available for a rolling migration. Clusters created with an earlier module version must complete this migration before upgrading to module version 7 or higher.
+
+1. Back up your volumes, verify that all volumes and replicas are healthy, and ensure that other storage nodes have enough capacity for one node's replicas.
+2. Upgrade to module version 6. It creates `/var/mnt/longhorn` and uses it for new Longhorn disks while keeping existing `/var/lib/longhorn` disks available.
+3. Migrate each storage node separately:
+   1. In the Longhorn UI, open **Node**.
+   2. Select the node and choose **Edit Node and Disks** from the action menu.
+   3. Find the disk with the `/var/lib/longhorn` path. Note any custom storage reservation or tags that must be retained.
+   4. Set **Scheduling** to **Disable**, set **Eviction Requested** to `true`, and save.
+   5. Wait until the disk shows `0` replicas and no backing images. Do not remove the disk before eviction finishes.
+   6. Open **Edit Node and Disks** again, remove the `/var/lib/longhorn` disk, and save.
+   7. Add a filesystem disk with the `/var/mnt/longhorn` path, restore any custom storage reservation or tags, enable scheduling, and save.
+   8. Wait until the new disk is ready and all volumes are healthy before migrating the next node.
+
+Do not enable scheduling on both paths of the same node at once. They share the node's `EPHEMERAL` filesystem, so Longhorn would count the same capacity twice. Complete the migration before upgrading to module version 7 or higher, which will remove the legacy `/var/lib/longhorn` mount.
+
+For more information about Longhorn, see the [Longhorn documentation](https://longhorn.io/docs/).
+
+</details>
+
+
 <!-- Network Segmentation -->
 <details>
 <summary><b>Network Segmentation</b></summary>
@@ -891,81 +986,6 @@ Here is a table with more example calculations:
 | **10.0.0.0/19** | /28 (16 IPs)     | 10.0.8.0/22  (64) | 10.0.12.0/22 (1024) | 10.0.16.0/20 (16)   |
 | **10.0.0.0/20** | /29 (8 IPs)      | 10.0.4.0/23  (64) | 10.0.6.0/23 (512)   | 10.0.8.0/21 (8)     |
 | **10.0.0.0/21** | /30 (4 IPs)      | 10.0.2.0/24  (64) | 10.0.3.0/24 (256)   | 10.0.4.0/22 (4)     |
- 
-</details>
-
-
-<!-- Storage Configuration-->
-<details>
-<summary><b>Storage Configuration</b></summary>
-
-#### Hetzner Cloud CSI
-
-The Hetzner Cloud Container Storage Interface (CSI) driver can be flexibly configured through the `hcloud_csi_storage_classes` variable. You can define multiple storage classes for your cluster:
-
-* **name:** The name of the StorageClass (string, required).
-* **encrypted:** Enable LUKS encryption for volumes (bool, required).
-* **defaultStorageClass:** Set this class as the default (optional, bool, defaults to `false`).
-* **reclaimPolicy:** The Kubernetes reclaim policy (`Delete` or `Retain`, optional, defaults to `Delete`).
-* **extraParameters:** Additional parameters for the StorageClass (optional map).
-
-**Example:**
-
-```hcl
-hcloud_csi_storage_classes = [
-  {
-    name                = "hcloud-volumes"
-    encrypted           = false
-    defaultStorageClass = true
-  },
-  {
-    name                = "hcloud-volumes-encrypted-xfs"
-    encrypted           = true
-    reclaimPolicy       = "Retain"
-    extraParameters     = {
-      "csi.storage.k8s.io/fstype" = "xfs"
-      "fsFormatOption"            = "-i nrext64=1"
-    }
-  }
-]
-```
-
-**Other settings:**
-
-* **hcloud\_csi\_encryption\_passphrase:**
-  Optionally provide a custom encryption passphrase for LUKS-encrypted storage classes.
-
-  ```hcl
-  hcloud_csi_encryption_passphrase = "<secret-passphrase>"
-  ```
-
-**Storage Class Immutability:**
-StorageClasses created by the Hcloud CSI driver are immutable. To change parameters after creation, you must either edit the StorageClass directly with `kubectl`, or delete it from both Terraform state and Kubernetes, then let this module recreate it.
-
-For more details, see the [HCloud CSI Driver documentation](https://github.com/hetznercloud/csi-driver/tree/main/docs/kubernetes).
-
-
-#### Longhorn
-
-Longhorn is a lightweight, reliable, and easy-to-use distributed block storage system for Kubernetes.
-It is fully independent from the Hetzner Cloud CSI driver.
-
-You can enable Longhorn and configure it as the default StorageClass for your cluster via module variables:
-
-* **Enable Longhorn:**
-  Set `longhorn_enabled` to `true` to deploy Longhorn in your cluster.
-
-* **Default StorageClass:**
-  Set `longhorn_default_storage_class` to `true` if you want Longhorn to be the default StorageClass.
-
-**Example:**
-
-```hcl
-longhorn_enabled               = true
-longhorn_default_storage_class = true
-```
-
-For more information about Longhorn, see the [Longhorn documentation](https://longhorn.io/docs/).
 
 </details>
 
@@ -1087,7 +1107,7 @@ For more details, refer to the [official Talos discovery guide](https://www.talo
 <details>
 <summary><b>Kubernetes RBAC</b></summary>
 
-This module allows you to create custom Kubernetes RBAC (Role-Based Access Control) roles and cluster roles that define specific permissions for users and groups. RBAC controls what actions users can perform on which Kubernetes resources.  
+This module allows you to create custom Kubernetes RBAC (Role-Based Access Control) roles and cluster roles that define specific permissions for users and groups. RBAC controls what actions users can perform on which Kubernetes resources.
 These custom roles can be used independently or combined with OIDC group mappings to automatically assign permissions based on user group membership from your identity provider.
 
 #### Example Configuration
@@ -1195,7 +1215,7 @@ First, verify that your OIDC provider is returning proper JWT tokens. Replace th
 kubectl oidc-login setup \
   --oidc-issuer-url=https://your-oidc-provider.com \
   --oidc-client-id=your-client-id \
-  --oidc-client-secret=your-client-secret \           
+  --oidc-client-secret=your-client-secret \
   --oidc-extra-scope=openid,email,profile             # Add or change the scopes according to your IDP
 ```
 

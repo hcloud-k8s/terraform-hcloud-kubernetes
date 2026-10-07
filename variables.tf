@@ -913,9 +913,10 @@ variable "talos_kubelet_extra_mounts" {
     condition = (
       length(var.talos_kubelet_extra_mounts) ==
       length(toset([for mount in var.talos_kubelet_extra_mounts : coalesce(mount.destination, mount.source)])) &&
+      (!var.longhorn_enabled || !contains([for mount in var.talos_kubelet_extra_mounts : coalesce(mount.destination, mount.source)], "/var/mnt/longhorn")) &&
       (!var.longhorn_enabled || !contains([for mount in var.talos_kubelet_extra_mounts : coalesce(mount.destination, mount.source)], "/var/lib/longhorn"))
     )
-    error_message = "Each destination in talos_kubelet_extra_mounts must be unique and cannot include the Longhorn default data path if Longhorn is enabled."
+    error_message = "Each destination in talos_kubelet_extra_mounts must be unique and cannot duplicate a Longhorn data path managed by this module."
   }
 }
 

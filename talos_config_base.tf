@@ -51,6 +51,16 @@ locals {
     resolveMemberNames   = true
   }
 
+  # Longhorn data paths
+  talos_longhorn_volume_config_patches = var.longhorn_enabled ? [
+    {
+      apiVersion = "v1alpha1"
+      kind       = "UserVolumeConfig"
+      name       = "longhorn"
+      volumeType = "directory"
+    }
+  ] : []
+
   # Kubelet extra mounts
   talos_kubelet_extra_mounts = concat(
     var.longhorn_enabled ? [
@@ -420,6 +430,7 @@ locals {
       )
     }],
     local.talos_system_volume_config_patches,
+    local.talos_longhorn_volume_config_patches,
     [local.talos_resolver_config_patch],
     [local.talos_time_sync_config_patch],
     local.talos_registry_mirror_config_patches,

@@ -30,6 +30,7 @@ data "helm_template" "longhorn" {
     yamlencode({
       defaultSettings = {
         allowCollectingLonghornUsageMetrics = false
+        defaultDataPath                     = "/var/mnt/longhorn"
         kubernetesClusterAutoscalerEnabled  = var.cluster_autoscaler_enabled
         upgradeChecker                      = false
       }
