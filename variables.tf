@@ -1341,69 +1341,101 @@ variable "talos_ccm_helm_values" {
 }
 
 # Kubernetes OIDC Configuration
-variable "oidc_enabled" {
-  description = "Enable OIDC authentication for Kubernetes API server"
-  type        = bool
-  default     = false
-}
-
-variable "oidc_issuer_url" {
-  description = "URL of the OIDC provider (e.g., https://your-oidc-provider.com). Required when oidc_enabled is true"
-  type        = string
-  default     = ""
-
-  validation {
-    condition     = var.oidc_enabled == false || (var.oidc_enabled == true && var.oidc_issuer_url != "")
-    error_message = "oidc_issuer_url is required when oidc_enabled is true."
-  }
-}
-
-variable "oidc_client_id" {
-  description = "OIDC client ID that all tokens must be issued for. Required when oidc_enabled is true"
-  type        = string
-  default     = ""
-
-  validation {
-    condition     = var.oidc_enabled == false || (var.oidc_enabled == true && var.oidc_client_id != "")
-    error_message = "oidc_client_id is required when oidc_enabled is true."
-  }
-}
-
-variable "oidc_username_claim" {
-  description = "JWT claim to use as the username"
-  type        = string
-  default     = "sub"
-}
-
-variable "oidc_groups_claim" {
-  description = "JWT claim to use as the user's groups"
-  type        = string
-  default     = "groups"
-}
-
-variable "oidc_groups_prefix" {
-  description = "Prefix prepended to group claims to prevent clashes with existing names"
-  type        = string
-  default     = "oidc:"
-}
-
-variable "oidc_group_mappings" {
-  description = "List of OIDC groups mapped to Kubernetes roles and cluster roles"
+variable "kube_api_oidc_providers" {
+  description = "OIDC providers accepted by the Kubernetes API server, including their audiences, claim mappings, and Kubernetes RBAC group mappings. OIDC authentication is disabled when the list is empty."
   type = list(object({
-    group         = string
-    cluster_roles = optional(list(string), [])
-    roles = optional(list(object({
-      name      = string
-      namespace = string
+    issuer_url            = string
+    discovery_url         = optional(string)
+    certificate_authority = optional(string)
+    audiences             = list(string)
+    username_claim        = optional(string, "sub")
+    username_prefix       = optional(string)
+    groups_claim          = optional(string, "groups")
+    groups_prefix         = optional(string, "oidc:")
+    group_mappings = optional(list(object({
+      group         = string
+      cluster_roles = optional(list(string), [])
+      roles = optional(list(object({
+        name      = string
+        namespace = string
+      })), [])
     })), [])
   }))
   default = []
 
   validation {
-    condition = length(var.oidc_group_mappings) == length(distinct([
-      for mapping in var.oidc_group_mappings : mapping.group
+    condition     = length(var.kube_api_oidc_providers) <= 64
+    error_message = "At most 64 OIDC providers can be configured."
+  }
+
+  validation {
+    condition = alltrue([
+      for provider in var.kube_api_oidc_providers : startswith(provider.issuer_url, "https://")
+    ])
+    error_message = "Each OIDC issuer URL must use HTTPS."
+  }
+
+  validation {
+    condition = length(var.kube_api_oidc_providers) == length(distinct([
+      for provider in var.kube_api_oidc_providers : provider.issuer_url
     ]))
-    error_message = "OIDC group names must be unique. Duplicate group names found."
+    error_message = "OIDC issuer URLs must be unique. Use multiple audiences for clients that share an issuer."
+  }
+
+  validation {
+    condition = alltrue([
+      for provider in var.kube_api_oidc_providers : (
+        provider.discovery_url == null ? true : (
+          startswith(provider.discovery_url, "https://") &&
+          provider.discovery_url != provider.issuer_url
+        )
+      )
+    ])
+    error_message = "Each OIDC discovery URL must use HTTPS and differ from its issuer URL."
+  }
+
+  validation {
+    condition = alltrue([
+      for provider in var.kube_api_oidc_providers : (
+        provider.discovery_url == null || length([
+          for candidate in var.kube_api_oidc_providers : candidate
+          if candidate.discovery_url == provider.discovery_url
+        ]) == 1
+      )
+    ])
+    error_message = "OIDC discovery URLs must be unique."
+  }
+
+  validation {
+    condition = alltrue([
+      for provider in var.kube_api_oidc_providers : (
+        length(provider.audiences) > 0 &&
+        length(provider.audiences) == length(distinct(provider.audiences)) &&
+        alltrue([for audience in provider.audiences : length(audience) > 0])
+      )
+    ])
+    error_message = "Each OIDC provider must define at least one non-empty, unique audience."
+  }
+
+  validation {
+    condition = alltrue([
+      for provider in var.kube_api_oidc_providers : (
+        length(provider.username_claim) > 0 &&
+        length(provider.groups_claim) > 0
+      )
+    ])
+    error_message = "OIDC username and groups claims must not be empty."
+  }
+
+  validation {
+    condition = alltrue([
+      for provider in var.kube_api_oidc_providers : (
+        length(provider.group_mappings) == length(distinct([
+          for mapping in provider.group_mappings : mapping.group
+        ]))
+      )
+    ])
+    error_message = "OIDC group names must be unique within each provider."
   }
 }
 
