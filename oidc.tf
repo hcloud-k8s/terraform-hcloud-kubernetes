@@ -1,17 +1,28 @@
 locals {
+  oidc_group_mappings = flatten([
+    for provider in var.kube_api_oidc_providers : [
+      for group_mapping in provider.group_mappings : merge(
+        group_mapping,
+        {
+          subject_name = "${provider.groups_prefix}${group_mapping.group}"
+        }
+      )
+    ]
+  ])
+
   # Collect all unique k8s cluster roles used across OIDC group mappings
-  k8s_cluster_roles = var.oidc_enabled ? toset(flatten([
-    for group_mapping in var.oidc_group_mappings : group_mapping.cluster_roles
-  ])) : toset([])
+  k8s_cluster_roles = toset(flatten([
+    for group_mapping in local.oidc_group_mappings : group_mapping.cluster_roles
+  ]))
 
   # Collect all unique k8s roles used across OIDC group mappings (grouped by namespace/role)
-  k8s_roles = var.oidc_enabled ? {
-    for role_key, role_info in merge([
-      for group_mapping in var.oidc_group_mappings : {
-        for role in group_mapping.roles : "${role.namespace}/${role.name}" => role
-      }
-    ]...) : role_key => role_info
-  } : {}
+  k8s_roles = {
+    for role_key, role_entries in {
+      for role in flatten([
+        for group_mapping in local.oidc_group_mappings : group_mapping.roles
+      ]) : "${role.namespace}/${role.name}" => role...
+    } : role_key => role_entries[0]
+  }
 
   # Create one ClusterRoleBinding per cluster role with all groups as subjects
   cluster_role_binding_manifests = [
@@ -26,19 +37,15 @@ locals {
         kind     = "ClusterRole"
         name     = cluster_role
       }
-      subjects = [
-        for group_mapping in var.oidc_group_mappings : {
+      subjects = distinct([
+        for group_mapping in local.oidc_group_mappings : {
           apiGroup = "rbac.authorization.k8s.io"
           kind     = "Group"
-          name     = "${var.oidc_groups_prefix}${group_mapping.group}"
+          name     = group_mapping.subject_name
         }
         if contains(group_mapping.cluster_roles, cluster_role)
-      ]
+      ])
     })
-    if length([
-      for group_mapping in var.oidc_group_mappings : group_mapping
-      if contains(group_mapping.cluster_roles, cluster_role)
-    ]) > 0
   ]
 
   # Create one RoleBinding per role with all groups as subjects
@@ -55,26 +62,22 @@ locals {
         kind     = "Role"
         name     = role_info.name
       }
-      subjects = [
-        for group_mapping in var.oidc_group_mappings : {
+      subjects = distinct([
+        for group_mapping in local.oidc_group_mappings : {
           apiGroup = "rbac.authorization.k8s.io"
           kind     = "Group"
-          name     = "${var.oidc_groups_prefix}${group_mapping.group}"
+          name     = group_mapping.subject_name
         }
         if contains([for role in group_mapping.roles : "${role.namespace}/${role.name}"], role_key)
-      ]
+      ])
     })
-    if length([
-      for group_mapping in var.oidc_group_mappings : group_mapping
-      if contains([for role in group_mapping.roles : "${role.namespace}/${role.name}"], role_key)
-    ]) > 0
   ]
 
   # Combine all OIDC manifests
-  oidc_manifests = var.oidc_enabled ? concat(
+  oidc_manifests = concat(
     local.cluster_role_binding_manifests,
     local.role_binding_manifests
-  ) : []
+  )
 
   # Final manifest
   oidc_manifest = length(local.oidc_manifests) > 0 ? {

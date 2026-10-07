@@ -1161,35 +1161,37 @@ rbac_roles = [
 <details>
 <summary><b>OIDC Cluster Authentication</b></summary>
 
-The Kubernetes API server supports OIDC (OpenID Connect) authentication, allowing integration with external identity providers like Keycloak, Auth0, Authentik, Zitadel, etc.
+The Kubernetes API server supports OIDC (OpenID Connect) authentication, allowing integration with one or more external identity providers like Keycloak, Auth0, Authentik, Zitadel, etc.
 When enabled, users can authenticate using their existing organizational credentials instead of managing separate Kubernetes certificates or tokens.
 
 OIDC authentication works by validating JWT tokens issued by your identity provider, extracting user information and group memberships, and mapping them to Kubernetes RBAC roles.
+Each issuer must be unique. Configure multiple clients from the same issuer as audiences of a single provider. The module automatically configures `MatchAny` when a provider has multiple audiences.
 
 #### Example Configuration
 
 ```hcl
-# OIDC Configuration
-oidc_enabled        = true                               # Enable OIDC authentication
-oidc_issuer_url     = "https://your-oidc-provider.com"   # Your OIDC provider issuer URL
-oidc_client_id      = "your-client-id"                   # Client ID registered in your OIDC provider
-oidc_username_claim = "preferred_username"               # OIDC JWT claim to extract username from
-oidc_groups_claim   = "groups"                           # OIDC JWT claim to extract user groups from
-oidc_groups_prefix  = "oidc:"                            # Prefix added to group names in K8s to avoid conflicts
+kube_api_oidc_providers = [
+  {
+    issuer_url     = "https://keycloak.example.com/realms/example"
+    audiences      = ["kubectl", "headlamp"]
+    username_claim = "preferred_username"
+    groups_claim   = "groups"
+    groups_prefix  = "oidc:"
 
-# Map OIDC groups to Kubernetes roles and cluster roles
-oidc_group_mappings = [                                  # List of OIDC group mappings
-  {
-    group         = "cluster-admins-group"               # OIDC provider group name
-    cluster_roles = ["cluster-admin"]                    # Grant cluster-admin access
-  },
-  {
-    group         = "developers-group"                   # OIDC provider group name
-    cluster_roles = ["view"]                             # Grant cluster-wide view access
-    roles = [                                            # Grant namespace scoped roles
+    group_mappings = [
       {
-        name      = "developer-role"                     # Custom role name
-        namespace = "development"                        # Namespace where role applies
+        group         = "cluster-admins-group"
+        cluster_roles = ["cluster-admin"]
+      },
+      {
+        group         = "developers-group"
+        cluster_roles = ["view"]
+        roles = [
+          {
+            name      = "developer-role"
+            namespace = "development"
+          }
+        ]
       }
     ]
   }

@@ -1,7 +1,7 @@
 locals {
   talos_allow_scheduling_on_control_planes = coalesce(var.cluster_allow_scheduling_on_control_planes, (local.worker_sum + local.cluster_autoscaler_max_sum) == 0)
 
-  talos_kube_authentication_config_patches = var.oidc_enabled ? [
+  talos_kube_authentication_config_patches = length(var.kube_api_oidc_providers) > 0 ? [
     {
       apiVersion = "v1alpha1"
       kind       = "KubeAuthenticationConfig"
@@ -15,19 +15,32 @@ locals {
           ]
         }
         jwt = [
-          {
-            issuer = {
-              url       = var.oidc_issuer_url
-              audiences = [var.oidc_client_id]
-            }
+          for provider in var.kube_api_oidc_providers : {
+            issuer = merge(
+              {
+                url       = provider.issuer_url
+                audiences = provider.audiences
+              },
+              length(provider.audiences) > 1 ? {
+                audienceMatchPolicy = "MatchAny"
+              } : {},
+              provider.discovery_url != null ? {
+                discoveryURL = provider.discovery_url
+              } : {},
+              provider.certificate_authority != null ? {
+                certificateAuthority = provider.certificate_authority
+              } : {}
+            )
             claimMappings = {
               username = {
-                claim  = var.oidc_username_claim
-                prefix = var.oidc_username_claim == "email" ? "" : "${var.oidc_issuer_url}#"
+                claim = provider.username_claim
+                prefix = provider.username_prefix != null ? provider.username_prefix : (
+                  provider.username_claim == "email" ? "" : "${provider.issuer_url}#"
+                )
               }
               groups = {
-                claim  = var.oidc_groups_claim
-                prefix = var.oidc_groups_prefix
+                claim  = provider.groups_claim
+                prefix = provider.groups_prefix
               }
             }
           }
