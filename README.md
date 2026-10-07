@@ -1340,7 +1340,7 @@ The table below lists the Talos and Kubernetes versions used by each Hcloud K8s 
 | Hcloud K8s | Talos Linux | Kubernetes |
 | :--------: | :---------: | :--------: |
 |  **(7)**   |   (1.15)    |    1.36    |
-|  **(6)**   |    1.14     |    1.35    |
+|   **6**    |    1.14     |    1.35    |
 |   **5**    |    1.13     |    1.34    |
 <!--
 |   **4**    |    1.12     |    1.33    |
