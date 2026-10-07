@@ -648,8 +648,8 @@ By default, a firewall is configured that can be extended with custom rules. If 
 Each rule is defined with the following properties:
 - `description`: A brief description of the rule.
 - `direction`: The direction of traffic (`in` for inbound, `out` for outbound).
-- `source_ips`: A list of source IP addresses for outbound rules.
-- `destination_ips`: A list of destination IP addresses for inbound rules.
+- `source_ips`: A list of source IP addresses for inbound rules.
+- `destination_ips`: A list of destination IP addresses for outbound rules.
 - `protocol`: The protocol used (valid options: `tcp`, `udp`, `icmp`, `gre`, `esp`).
 - `port`: The port number (required for `tcp` and `udp` protocols, must not be specified for `icmp`, `gre`, and `esp`).
 
