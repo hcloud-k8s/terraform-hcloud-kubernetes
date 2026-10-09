@@ -89,10 +89,11 @@ resource "hcloud_load_balancer_service" "kube_api" {
     retries  = 2
 
     http {
-      path         = "/readyz"
-      response     = "ok"
-      tls          = true
-      status_codes = ["200"]
+      path = "/readyz"
+      tls  = true
+
+      # Remove pre-Talos 1.14 upgrade compatibility in v7.
+      status_codes = ["200", "401"]
     }
   }
 
