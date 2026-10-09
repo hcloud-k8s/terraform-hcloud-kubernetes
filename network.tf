@@ -94,7 +94,7 @@ data "hcloud_network" "this" {
 resource "hcloud_network" "this" {
   count = length(data.hcloud_network.this) > 0 ? 0 : 1
 
-  name                     = var.cluster_name
+  name                     = local.cluster_resources_name
   ip_range                 = local.network_ipv4_cidr
   delete_protection        = var.cluster_delete_protection
   expose_routes_to_vswitch = var.hcloud_network_expose_routes_to_vswitch

@@ -251,6 +251,48 @@ tofu destroy
 <!-- Advanced Configuration -->
 ## ⚙️ Advanced Configuration
 
+<!-- Resource Name Overrides -->
+<details>
+<summary><b>Resource Name Overrides</b></summary>
+
+By default the module names every Hetzner resource after the cluster: nodes are
+`<cluster_name>-<pool>-<index>`, and the network, firewall, floating IP, load
+balancer and SSH key carry the cluster name too. The following settings override
+those names individually and are optional — leaving them unset keeps every
+default name unchanged:
+
+- `cluster_resources_name` — base name of the cluster-scoped resources: the
+  network, firewall, floating IP and the managed kube-api load balancer. Defaults
+  to `cluster_name`.
+- `ssh_key_name` — name of the created Hetzner SSH key. Defaults to
+  `cluster_name`.
+- `control_plane_nodepools[].node_name` / `worker_nodepools[].node_name` — base
+  name of a pool's nodes and of their Talos hostnames, `<node_name>-<index>`.
+  Defaults to `<cluster_name>-<pool name>`.
+- `control_plane_nodepools[].placement_group_name` /
+  `worker_nodepools[].placement_group_name` — name of the pool's placement group.
+  Defaults to `<cluster_name>-control-plane-pg` for the control plane and
+  `<cluster_name>-<pool name>-pg-<n>` for workers.
+- `cluster_autoscaler_nodepools[].node_name` — the node-group id that names each
+  node the cluster autoscaler creates (`<node_name>-<suffix>`) and keys its node
+  config. Defaults to `<cluster_name>-<pool name>`.
+
+This lets a root name nodes and cluster-scoped resources by role instead of by
+cluster, for example:
+
+```hcl
+cluster_resources_name = "k8s"
+ssh_key_name           = "k8s"
+
+control_plane_nodepools = [
+  { name = "control", type = "cpx22", location = "nbg1", count = 3, node_name = "k8s-control-plane" }
+]
+worker_nodepools = [
+  { name = "worker", type = "cpx22", location = "nbg1", count = 3, node_name = "app" }
+]
+```
+</details>
+
 <!-- Bare Metal Server -->
 <details>
 <summary><b>Bare Metal Server</b></summary>

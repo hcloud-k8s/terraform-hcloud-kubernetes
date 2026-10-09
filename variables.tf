@@ -9,6 +9,18 @@ variable "cluster_name" {
   }
 }
 
+variable "cluster_resources_name" {
+  type        = string
+  default     = null
+  description = "Base name of the cluster-scoped Hetzner resources the module creates (network, firewall, floating IP and the managed kube-api load balancer). Defaults to var.cluster_name, which keeps every existing name unchanged; set it to name those resources by role, e.g. \"k8s\"."
+}
+
+variable "ssh_key_name" {
+  type        = string
+  default     = null
+  description = "Name of the Hetzner SSH key the module creates. Defaults to var.cluster_name, which keeps the existing name unchanged."
+}
+
 variable "cluster_domain" {
   type        = string
   default     = "cluster.local"
@@ -284,20 +296,22 @@ variable "kube_api_admission_control" {
 
 variable "control_plane_nodepools" {
   type = list(object({
-    name        = string
-    location    = string
-    type        = string
-    backups     = optional(bool, false)
-    keep_disk   = optional(bool, false)
-    labels      = optional(map(string), {})
-    annotations = optional(map(string), {})
-    taints      = optional(list(string), [])
-    count       = optional(number, 1)
-    rdns        = optional(string)
-    rdns_ipv4   = optional(string)
-    rdns_ipv6   = optional(string)
+    name                 = string
+    location             = string
+    type                 = string
+    backups              = optional(bool, false)
+    keep_disk            = optional(bool, false)
+    labels               = optional(map(string), {})
+    annotations          = optional(map(string), {})
+    taints               = optional(list(string), [])
+    count                = optional(number, 1)
+    rdns                 = optional(string)
+    rdns_ipv4            = optional(string)
+    rdns_ipv6            = optional(string)
+    node_name            = optional(string)
+    placement_group_name = optional(string)
   }))
-  description = "Configures the number and attributes of Control Plane nodes."
+  description = "Configures the number and attributes of Control Plane nodes. Each pool also accepts an optional `node_name` (the base name of the pool's nodes `<node_name>-<index>` and of the Talos hostname; defaults to `<cluster_name>-<pool name>`, which keeps existing node names unchanged) and `placement_group_name` (default `<cluster_name>-control-plane-pg`)."
 
   validation {
     condition     = length(var.control_plane_nodepools) == length(distinct([for np in var.control_plane_nodepools : np.name]))
@@ -362,23 +376,25 @@ variable "control_plane_config_patches" {
 # Worker
 variable "worker_nodepools" {
   type = list(object({
-    name            = string
-    location        = string
-    type            = string
-    backups         = optional(bool, false)
-    keep_disk       = optional(bool, false)
-    labels          = optional(map(string), {})
-    annotations     = optional(map(string), {})
-    taints          = optional(list(string), [])
-    count           = optional(number, 1)
-    subnet          = optional(string)
-    rdns            = optional(string)
-    rdns_ipv4       = optional(string)
-    rdns_ipv6       = optional(string)
-    placement_group = optional(bool, true)
+    name                 = string
+    location             = string
+    type                 = string
+    backups              = optional(bool, false)
+    keep_disk            = optional(bool, false)
+    labels               = optional(map(string), {})
+    annotations          = optional(map(string), {})
+    taints               = optional(list(string), [])
+    count                = optional(number, 1)
+    subnet               = optional(string)
+    rdns                 = optional(string)
+    rdns_ipv4            = optional(string)
+    rdns_ipv6            = optional(string)
+    placement_group      = optional(bool, true)
+    node_name            = optional(string)
+    placement_group_name = optional(string)
   }))
   default     = []
-  description = "Defines configuration settings for Worker node pools within the cluster."
+  description = "Defines configuration settings for Worker node pools within the cluster. Each pool also accepts an optional `node_name` (the base name of the pool's nodes `<node_name>-<index>` and of the Talos hostname; defaults to `<cluster_name>-<pool name>`, which keeps existing node names unchanged) and `placement_group_name` (default `<cluster_name>-<pool name>-pg-<n>`)."
 
   validation {
     condition     = length(var.worker_nodepools) == length(distinct([for np in var.worker_nodepools : np.name]))
@@ -661,9 +677,10 @@ variable "cluster_autoscaler_nodepools" {
     subnet      = optional(string)
     min         = optional(number, 0)
     max         = number
+    node_name   = optional(string)
   }))
   default     = []
-  description = "Defines configuration settings for Autoscaler node pools within the cluster."
+  description = "Defines configuration settings for Autoscaler node pools within the cluster. Each pool also accepts an optional `node_name` (the node-group id that names each node the cluster-autoscaler creates, `<node_name>-<suffix>`, and keys the node config; defaults to `<cluster_name>-<pool name>`, which keeps existing node names unchanged)."
 
   validation {
     condition     = var.cluster_autoscaler_enabled || length(var.cluster_autoscaler_nodepools) == 0

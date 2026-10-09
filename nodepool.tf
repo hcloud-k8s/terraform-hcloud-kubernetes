@@ -1,4 +1,9 @@
 locals {
+  # Names of the cluster-scoped Hetzner resources: default to the cluster name,
+  # overridable so a root can name them by role (see variables.tf).
+  cluster_resources_name = coalesce(var.cluster_resources_name, var.cluster_name)
+  ssh_key_name           = coalesce(var.ssh_key_name, var.cluster_name)
+
   control_plane_nodepools = [
     for np in var.control_plane_nodepools : {
       name        = np.name,
@@ -31,6 +36,11 @@ locals {
         ]
       ),
       count = np.count,
+      # Base name of this pool's nodes and of its placement group. Defaults to
+      # "<cluster_name>-<pool>" (unchanged); overridable per pool so a root can
+      # name nodes by role, e.g. node_name = "k8s-control-plane".
+      node_name            = coalesce(np.node_name, "${var.cluster_name}-${np.name}")
+      placement_group_name = coalesce(np.placement_group_name, "${var.cluster_name}-control-plane-pg")
     }
   ]
 
@@ -62,7 +72,13 @@ locals {
       )],
       count           = np.count,
       subnet          = np.subnet,
-      placement_group = np.placement_group
+      placement_group = np.placement_group,
+      # Base name of this pool's nodes. Defaults to "<cluster_name>-<pool>"
+      # (unchanged); overridable per pool, e.g. node_name = "app".
+      node_name = coalesce(np.node_name, "${var.cluster_name}-${np.name}")
+      # Optional full placement-group name; null keeps the derived default
+      # "<cluster_name>-<pool>-pg-<n>".
+      placement_group_name = np.placement_group_name
     }
   ]
 
@@ -110,7 +126,12 @@ locals {
       )],
       subnet = np.subnet,
       min    = np.min,
-      max    = np.max
+      max    = np.max,
+      # Node-group id: names each node the cluster-autoscaler creates
+      # ("<node_name>-<suffix>") and keys the node config. Defaults to
+      # "<cluster_name>-<pool>" (unchanged); overridable, e.g.
+      # node_name = "ci-runner".
+      node_name = coalesce(np.node_name, "${var.cluster_name}-${np.name}")
     }
   ]
 
