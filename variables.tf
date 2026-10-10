@@ -835,6 +835,33 @@ variable "talos_image_extensions" {
   description = "Specifies Talos image extensions for additional functionality on top of the default Talos Linux capabilities. See: https://github.com/siderolabs/extensions"
 }
 
+variable "talos_tailscale_enabled" {
+  type        = bool
+  default     = false
+  description = "Enable the Talos Tailscale system extension on every cluster node."
+}
+
+variable "talos_tailscale_auth_key" {
+  type        = string
+  default     = null
+  sensitive   = true
+  description = "Tailscale auth key passed to the Talos Tailscale extension as TS_AUTHKEY."
+}
+
+variable "talos_tailscale_environment" {
+  type        = list(string)
+  default     = []
+  description = "Environment entries passed to the Talos Tailscale extension in KEY=VALUE format. See: https://github.com/siderolabs/extensions/tree/main/network/tailscale#configuration"
+
+  validation {
+    condition = alltrue([
+      for entry in var.talos_tailscale_environment :
+      can(regex("^[A-Za-z_][A-Za-z0-9_]*=", entry))
+    ])
+    error_message = "Each talos_tailscale_environment entry must use KEY=VALUE format."
+  }
+}
+
 variable "talos_upgrade_debug" {
   type        = bool
   default     = false

@@ -76,6 +76,7 @@ locals {
   talos_image_extensions_base = distinct(
     concat(
       var.talos_image_extensions,
+      var.talos_tailscale_enabled ? ["siderolabs/tailscale"] : [],
       var.longhorn_enabled ? local.talos_image_extensions_longhorn : []
     )
   )

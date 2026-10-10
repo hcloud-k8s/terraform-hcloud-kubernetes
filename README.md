@@ -1103,6 +1103,35 @@ talos_discovery_service_enabled = false
 For more details, refer to the [official Talos discovery guide](https://www.talos.dev/latest/talos-guides/discovery/).
 </details>
 
+<!-- Talos Tailscale -->
+<details>
+<summary><b>Talos Tailscale</b></summary>
+
+The module can install and configure the [Talos Tailscale system extension](https://github.com/siderolabs/extensions/tree/main/network/tailscale) on every control plane, worker, Cluster Autoscaler, and bare metal node:
+
+```hcl
+talos_tailscale_enabled  = true
+talos_tailscale_auth_key = var.tailscale_auth_key
+```
+
+The module leaves containerboot defaults unchanged: Tailscale does not accept tailnet DNS settings and reruns `tailscale up` on each start. Additional settings can be supplied as `KEY=VALUE` entries:
+
+```hcl
+talos_tailscale_environment = [
+  "TS_EXTRA_ARGS=--advertise-tags=tag:kubernetes",
+]
+```
+
+`TS_AUTH_ONCE=true` avoids repeat login when state persists, but later changes to `TS_EXTRA_ARGS` are not reapplied. Use it only if that trade-off is acceptable.
+
+The module leaves Cilium device selection unchanged. In testing, Cilium auto-detected `tailscale0`, used an MTU of 1280, and allowed pods to reach other nodes over Tailscale. Restricting Cilium to `eth+` or excluding `tailscale0` raised the MTU to 1450 but blocked that pod-to-tailnet traffic. If the lower MTU causes bandwidth problems, evaluate `cilium_helm_values.devices` for your network and test the traffic your workloads need.
+
+If you also use [the Tailscale Kubernetes Operator](https://tailscale.com/docs/kubernetes-operator/reference/compatibility) to expose Services or a Service CIDR while Cilium replaces kube-proxy, ensure socket load balancing is bypassed in pod namespaces. Set `cilium_socket_lb_host_namespace_only_enabled = true` unless Cilium Gateway API already enables this setting. The Talos node extension alone does not require it.
+
+If `talos_schematic_id` is set, its custom schematic must already contain `siderolabs/tailscale`, because the module cannot modify a supplied schematic. The auth key is sensitive, but it is necessarily stored in Terraform state and the rendered Talos machine configuration.
+
+</details>
+
 <!-- Kubernetes RBAC -->
 <details>
 <summary><b>Kubernetes RBAC</b></summary>
