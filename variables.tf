@@ -296,8 +296,10 @@ variable "control_plane_nodepools" {
     rdns        = optional(string)
     rdns_ipv4   = optional(string)
     rdns_ipv6   = optional(string)
+
+    primary_ipv4_ids = optional(list(number), [])
   }))
-  description = "Configures the number and attributes of Control Plane nodes."
+  description = "Configures the number and attributes of Control Plane nodes. The optional 'primary_ipv4_ids' attaches existing Hetzner Primary IPv4 addresses to the nodes of a pool, in order: the first ID goes to the first node, and so on. Nodes beyond the list length get an automatically created Primary IP."
 
   validation {
     condition     = length(var.control_plane_nodepools) == length(distinct([for np in var.control_plane_nodepools : np.name]))
@@ -312,6 +314,27 @@ variable "control_plane_nodepools" {
   validation {
     condition     = sum([for np in var.control_plane_nodepools : np.count]) % 2 == 1
     error_message = "The sum of all Control Plane nodes must be odd to ensure high availability."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.control_plane_nodepools : length(np.primary_ipv4_ids) <= np.count
+    ])
+    error_message = "The number of 'primary_ipv4_ids' in a nodepool must not exceed its 'count'."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.control_plane_nodepools : length(np.primary_ipv4_ids) == length(distinct(np.primary_ipv4_ids))
+    ])
+    error_message = "The 'primary_ipv4_ids' of a nodepool must be unique."
+  }
+
+  validation {
+    condition = var.talos_public_ipv4_enabled || alltrue([
+      for np in var.control_plane_nodepools : length(np.primary_ipv4_ids) == 0
+    ])
+    error_message = "'primary_ipv4_ids' requires 'talos_public_ipv4_enabled' to be true."
   }
 
   validation {
@@ -376,9 +399,11 @@ variable "worker_nodepools" {
     rdns_ipv4       = optional(string)
     rdns_ipv6       = optional(string)
     placement_group = optional(bool, true)
+
+    primary_ipv4_ids = optional(list(number), [])
   }))
   default     = []
-  description = "Defines configuration settings for Worker node pools within the cluster."
+  description = "Defines configuration settings for Worker node pools within the cluster. The optional 'primary_ipv4_ids' attaches existing Hetzner Primary IPv4 addresses to the nodes of a pool, in order: the first ID goes to the first node, and so on. Nodes beyond the list length get an automatically created Primary IP."
 
   validation {
     condition     = length(var.worker_nodepools) == length(distinct([for np in var.worker_nodepools : np.name]))
@@ -391,6 +416,40 @@ variable "worker_nodepools" {
       [for control_nodepool in var.control_plane_nodepools : coalesce(control_nodepool.count, 1)]
     )) <= 100
     error_message = "The total count of nodes in both worker and Control Plane nodepools must not exceed 100 to ensure manageable cluster size."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.worker_nodepools : length(np.primary_ipv4_ids) <= np.count
+    ])
+    error_message = "The number of 'primary_ipv4_ids' in a nodepool must not exceed its 'count'."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.worker_nodepools : length(np.primary_ipv4_ids) == length(distinct(np.primary_ipv4_ids))
+    ])
+    error_message = "The 'primary_ipv4_ids' of a nodepool must be unique."
+  }
+
+  validation {
+    condition = (
+      length(flatten(concat(
+        [for np in var.control_plane_nodepools : np.primary_ipv4_ids],
+        [for np in var.worker_nodepools : np.primary_ipv4_ids]
+        ))) == length(distinct(flatten(concat(
+          [for np in var.control_plane_nodepools : np.primary_ipv4_ids],
+          [for np in var.worker_nodepools : np.primary_ipv4_ids]
+      ))))
+    )
+    error_message = "A Primary IPv4 ID must not be used in more than one nodepool (Control Plane and Worker nodepools combined)."
+  }
+
+  validation {
+    condition = var.talos_public_ipv4_enabled || alltrue([
+      for np in var.worker_nodepools : length(np.primary_ipv4_ids) == 0
+    ])
+    error_message = "'primary_ipv4_ids' requires 'talos_public_ipv4_enabled' to be true."
   }
 
   validation {

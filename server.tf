@@ -26,6 +26,7 @@ resource "hcloud_server" "control_plane" {
         labels             = local.control_plane_nodepools[np_index].labels,
         placement_group_id = hcloud_placement_group.control_plane.id,
         subnet_id          = hcloud_network_subnet.control_plane.id,
+        primary_ipv4_id    = try(local.control_plane_nodepools[np_index].primary_ipv4_ids[cp_index], null),
       }
     }
   ]...)
@@ -55,6 +56,7 @@ resource "hcloud_server" "control_plane" {
 
   public_net {
     ipv4_enabled = var.talos_public_ipv4_enabled
+    ipv4         = each.value.primary_ipv4_id
     ipv6_enabled = var.talos_public_ipv6_enabled
   }
 
@@ -91,6 +93,7 @@ resource "hcloud_server" "worker" {
         placement_group_id = local.worker_nodepools[np_index].placement_group ? hcloud_placement_group.worker["${var.cluster_name}-${local.worker_nodepools[np_index].name}-pg-${ceil((wkr_index + 1) / 10.0)}"].id : null,
         subnet_id          = local.worker_nodepools[np_index].subnet != null ? hcloud_network_subnet.worker[local.worker_nodepools[np_index].name].id : hcloud_network_subnet.worker_shared.id,
         ipv4_private       = local.worker_nodepools[np_index].subnet != null ? cidrhost(hcloud_network_subnet.worker[local.worker_nodepools[np_index].name].ip_range, wkr_index + 1) : null,
+        primary_ipv4_id    = try(local.worker_nodepools[np_index].primary_ipv4_ids[wkr_index], null),
       }
     }
   ]...)
@@ -120,6 +123,7 @@ resource "hcloud_server" "worker" {
 
   public_net {
     ipv4_enabled = var.talos_public_ipv4_enabled
+    ipv4         = each.value.primary_ipv4_id
     ipv6_enabled = var.talos_public_ipv6_enabled
   }
 

@@ -990,6 +990,37 @@ Here is a table with more example calculations:
 </details>
 
 
+<!-- Primary IPv4 Addresses -->
+<details>
+<summary><b>Primary IPv4 Addresses</b></summary>
+
+### Primary IPv4 Addresses
+
+By default Hetzner creates a new Primary IPv4 for every server, so the public address of a node changes whenever the node is replaced. Control Plane and Worker node pools accept an optional `primary_ipv4_ids` list to attach existing Primary IPv4 addresses instead, for example to keep a stable egress address for firewall whitelisting.
+
+- IDs are assigned in order: the first ID goes to the first node of the pool, the second ID to the second node, and so on.
+- The list must not be longer than the pool `count`, must not contain duplicates, and requires `talos_public_ipv4_enabled = true`.
+- Nodes beyond the list length, and pools without the list, keep the default behavior (Hetzner creates the Primary IP).
+- IDs are assigned by index. Reordering the list or inserting an ID before the end moves IPs between existing nodes: the hcloud provider has to power the affected servers off to change their Primary IP (on Control Plane pools, all of them at once). Only append new IDs at the end of the list.
+- Nodes created by the Cluster Autoscaler are not covered: they get an automatically created public IP, not a fixed one.
+- Each Primary IP must already exist, be unassigned and be in the same location as the node. Manage it outside this module (for example with `hcloud_primary_ip`, `auto_delete = false` and `delete_protection = true`), so it survives node replacement.
+
+Example `kubernetes.tf` snippet:
+```hcl
+worker_nodepools = [
+  {
+    name     = "apps"
+    type     = "cpx22"
+    location = "nbg1"
+    count    = 2
+    primary_ipv4_ids = [hcloud_primary_ip.apps_1.id, hcloud_primary_ip.apps_2.id]
+  }
+]
+```
+
+</details>
+
+
 <!-- Talos Backup -->
 <details>
 <summary><b>Talos Backup</b></summary>
