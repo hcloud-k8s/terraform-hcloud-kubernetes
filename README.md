@@ -896,6 +896,26 @@ For more details, see the [HCloud CSI Driver documentation](https://github.com/h
 </details>
 
 
+<!-- IPv6 Pod Networking -->
+<details>
+<summary><b>IPv6 Pod Networking</b></summary>
+
+**⚠️ Experimental:** IPv6 Pod networking is opt-in. [Hetzner Private Networks](https://docs.hetzner.com/networking/networks/faq/) currently support only IPv4. When you enable IPv6 Pod networking with the CIDRs below and leave the routing settings unchanged, Cilium carries IPv6 Pod traffic between nodes through its IPv4 VXLAN overlay, and the module disables the Hetzner Cloud CCM Route Controller. For Internet egress, [Cilium's IPv6 eBPF masquerading](https://docs.cilium.io/en/stable/network/concepts/masquerading/#e-bpf-based) translates each Pod's IPv6 source address to its node's public IPv6 address. This NAT feature is beta, so dual-stack Pod networking is not supported for production use by this module.
+
+To try it on a new cluster, provide separate IPv6 Pod and Service CIDRs:
+
+```hcl
+network_pod_ipv6_cidr     = "fd42:6:175::/56"
+network_service_ipv6_cidr = "fd42:6:176::/112"
+```
+
+Choose unique IPv6 CIDRs for your cluster. Kubernetes allocates a `/64` Pod CIDR per node from the Pod range. Cilium carries both IPv4 and IPv6 Pod traffic over its IPv4 VXLAN tunnel. Hetzner Cloud CCM still manages nodes and load balancers. IPv6 Internet egress uses each node's public IPv6 address, so keep `talos_public_ipv6_enabled = true`.
+
+**⚠️ Existing clusters:** Enabling IPv6 Pod networking on an existing IPv4-only cluster requires additional migration steps and may disrupt Pod networking. Only do this if you know exactly what you are doing.
+
+</details>
+
+
 <!-- Longhorn -->
 <details>
 <summary><b>Longhorn</b></summary>

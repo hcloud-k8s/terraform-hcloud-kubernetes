@@ -1,5 +1,10 @@
 locals {
-  cilium_routing_mode = coalesce(var.cilium_routing_mode, local.bare_metal_enabled ? "tunnel" : "native")
+  cilium_routing_mode = coalesce(
+    var.cilium_routing_mode,
+    var.network_pod_ipv6_cidr == null
+    ? (local.bare_metal_enabled ? "tunnel" : "native")
+    : (local.hcloud_ccm_network_routes_enabled ? "native" : "tunnel")
+  )
 
   # Cilium IPSec Configuration
   cilium_ipsec_enabled = var.cilium_encryption_enabled && var.cilium_encryption_type == "ipsec"
@@ -58,7 +63,11 @@ data "helm_template" "cilium" {
       ipam = {
         mode = "kubernetes"
       }
-      routingMode           = local.cilium_routing_mode
+      routingMode       = local.cilium_routing_mode
+      rollOutCiliumPods = true
+      ipv6 = {
+        enabled = var.network_pod_ipv6_cidr != null
+      }
       ipv4NativeRoutingCIDR = local.network_native_routing_ipv4_cidr
       policyCIDRMatchMode   = var.cilium_policy_cidr_match_mode
       bpf = {

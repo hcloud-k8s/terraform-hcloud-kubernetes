@@ -384,8 +384,8 @@ locals {
     apiVersion     = "v1alpha1"
     kind           = "KubeNetworkConfig"
     dnsDomain      = var.cluster_domain
-    podSubnets     = [local.network_pod_ipv4_cidr]
-    serviceSubnets = [local.network_service_ipv4_cidr]
+    podSubnets     = concat([local.network_pod_ipv4_cidr], var.network_pod_ipv6_cidr == null ? [] : [var.network_pod_ipv6_cidr])
+    serviceSubnets = concat([local.network_service_ipv4_cidr], var.network_service_ipv6_cidr == null ? [] : [var.network_service_ipv6_cidr])
   }
 
   talos_kube_proxy_config_patch = merge(
