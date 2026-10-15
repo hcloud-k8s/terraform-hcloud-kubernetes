@@ -3,7 +3,10 @@ locals {
   hcloud_robot_enabled = var.hcloud_robot_user != null && var.hcloud_robot_password != null
   bare_metal_enabled   = length(var.bare_metal_nodepools) > 0
 
-  hcloud_ccm_network_routes_enabled = coalesce(var.hcloud_ccm_network_routes_enabled, !local.bare_metal_enabled)
+  hcloud_ccm_network_routes_enabled = coalesce(
+    var.hcloud_ccm_network_routes_enabled,
+    !local.bare_metal_enabled && var.network_pod_ipv6_cidr == null
+  )
 
   hcloud_secret_manifest = {
     name = "hcloud-secret"

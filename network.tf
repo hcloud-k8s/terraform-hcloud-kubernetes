@@ -26,7 +26,12 @@ locals {
 
   network_pod_ipv4_cidr = coalesce(var.network_pod_ipv4_cidr, cidrsubnet(local.network_ipv4_cidr, 1, 1))
 
-  network_native_routing_ipv4_cidr         = coalesce(var.network_native_routing_ipv4_cidr, local.bare_metal_enabled ? local.network_pod_ipv4_cidr : local.network_ipv4_cidr)
+  network_native_routing_ipv4_cidr = coalesce(
+    var.network_native_routing_ipv4_cidr,
+    var.network_pod_ipv6_cidr == null
+    ? (local.bare_metal_enabled ? local.network_pod_ipv4_cidr : local.network_ipv4_cidr)
+    : (local.hcloud_ccm_network_routes_enabled ? local.network_ipv4_cidr : local.network_pod_ipv4_cidr)
+  )
   network_node_ipv4_cidr_skip_first_subnet = cidrhost(local.network_ipv4_cidr, 0) == cidrhost(local.network_node_ipv4_cidr, 0)
   network_ipv4_gateway                     = cidrhost(local.network_ipv4_cidr, 1)
 

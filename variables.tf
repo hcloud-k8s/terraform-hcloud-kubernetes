@@ -145,16 +145,48 @@ variable "network_service_ipv4_cidr" {
   description = "Specifies the Service IPv4 CIDR block used for allocating ClusterIPs to services within the cluster. If not provided, a default subnet is dynamically calculated from the specified network_ipv4_cidr."
 }
 
+variable "network_service_ipv6_cidr" {
+  type        = string
+  default     = null
+  description = "Experimental, optional IPv6 Service CIDR for dual-stack Kubernetes networking. Not supported for production use. Requires network_pod_ipv6_cidr."
+
+  validation {
+    condition     = var.network_service_ipv6_cidr == null || (can(cidrhost(var.network_service_ipv6_cidr, 0)) && can(regex(":", var.network_service_ipv6_cidr)))
+    error_message = "network_service_ipv6_cidr must be a valid IPv6 CIDR."
+  }
+}
+
 variable "network_pod_ipv4_cidr" {
   type        = string
   default     = null # 10.0.128.0/17 when network_ipv4_cidr is 10.0.0.0/16
   description = "Defines the Pod IPv4 CIDR block allocated for use by pods within the cluster. This CIDR block is essential for internal pod communications. If a specific subnet is not provided, a default is dynamically calculated from the network_ipv4_cidr."
 }
 
+variable "network_pod_ipv6_cidr" {
+  type        = string
+  default     = null
+  description = "Experimental, optional IPv6 Pod CIDR for dual-stack Kubernetes networking. Not supported for production use. Requires network_service_ipv6_cidr."
+
+  validation {
+    condition     = var.network_pod_ipv6_cidr == null || (can(cidrhost(var.network_pod_ipv6_cidr, 0)) && can(regex(":", var.network_pod_ipv6_cidr)))
+    error_message = "network_pod_ipv6_cidr must be a valid IPv6 CIDR."
+  }
+
+  validation {
+    condition     = (var.network_pod_ipv6_cidr == null) == (var.network_service_ipv6_cidr == null)
+    error_message = "network_pod_ipv6_cidr and network_service_ipv6_cidr must either both be set or both be omitted."
+  }
+
+  validation {
+    condition     = var.network_pod_ipv6_cidr == null || var.talos_ipv6_enabled
+    error_message = "talos_ipv6_enabled must be true when IPv6 Pod networking is enabled."
+  }
+}
+
 variable "network_native_routing_ipv4_cidr" {
   type        = string
   default     = null
-  description = "Specifies the IPv4 CIDR block that the CNI assumes will be routed natively by the underlying network infrastructure without the need for SNAT. When omitted, this defaults to network_pod_ipv4_cidr if bare metal servers are enabled, otherwise network_ipv4_cidr."
+  description = "Specifies the IPv4 CIDR block that Cilium treats as natively routable without masquerading. For IPv4-only clusters, this defaults to the Pod CIDR on bare metal and the network CIDR otherwise. With IPv6 Pod networking, it defaults to the network CIDR if Hetzner Cloud CCM routes are enabled and the Pod CIDR otherwise."
 }
 
 
@@ -1012,7 +1044,7 @@ variable "talos_public_ipv4_enabled" {
 variable "talos_public_ipv6_enabled" {
   type        = bool
   default     = true
-  description = "Determines whether public IPv6 addresses are enabled for nodes in the cluster. If true, each node is assigned a public IPv4 address."
+  description = "Determines whether public IPv6 addresses are enabled for nodes in the cluster. If true, each node is assigned a public IPv6 address."
 }
 
 variable "talos_extra_routes" {
@@ -1785,7 +1817,7 @@ variable "hcloud_ccm_load_balancers_uses_proxyprotocol" {
 variable "hcloud_ccm_network_routes_enabled" {
   type        = bool
   default     = null
-  description = "Enable or disable Hetzner Cloud CCM Route Controller. When omitted, the value is automatically set to false if Bare Metal servers are used. Otherwise it is true."
+  description = "Enable or disable the Hetzner Cloud CCM Route Controller. When omitted, this defaults to false for bare metal or IPv6 Pod networking, otherwise true."
 }
 
 
@@ -1920,7 +1952,7 @@ variable "cilium_helm_version" {
 variable "cilium_helm_values" {
   type        = any
   default     = {}
-  description = "Custom Helm values for the Cilium chart deployment. These values will merge with and will override the default values provided by the Cilium Helm chart."
+  description = "Custom Helm values for the Cilium chart deployment. These values are merged after the module-generated values and can override them as well as the Cilium chart defaults."
 }
 
 variable "cilium_policy_cidr_match_mode" {
@@ -2010,7 +2042,7 @@ variable "cilium_bpf_host_legacy_routing" {
 
 variable "cilium_routing_mode" {
   type        = string
-  description = "Cilium routing mode. When omitted, this defaults to tunnel if bare metal servers are enabled, otherwise native."
+  description = "Cilium routing mode. For IPv4-only clusters, this defaults to tunnel on bare metal and native otherwise. With IPv6 Pod networking, it defaults to native if Hetzner Cloud CCM routes are enabled and tunnel otherwise."
   default     = null
 
   validation {
