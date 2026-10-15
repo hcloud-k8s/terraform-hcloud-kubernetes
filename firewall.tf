@@ -161,7 +161,7 @@ locals {
   )
 
   bare_metal_firewall_extra_input_rules = flatten([
-    for rule in var.firewall_extra_rules : rule.direction == "in" ? (
+    for rule in var.firewall_extra_rules : rule.direction == "in" && contains(rule.targets, "bare_metal") ? (
       length(rule.source_ips) == 0 ? [
         {
           name       = "${rule.description} IPv4"
@@ -199,7 +199,7 @@ locals {
   ])
 
   bare_metal_firewall_extra_output_rules = flatten([
-    for rule in var.firewall_extra_rules : rule.direction == "out" ? (
+    for rule in var.firewall_extra_rules : rule.direction == "out" && contains(rule.targets, "bare_metal") ? (
       length(rule.destination_ips) == 0 ? [
         {
           name       = "${rule.description} IPv4"
@@ -236,7 +236,7 @@ locals {
     ) : []
   ])
   bare_metal_firewall_extra_output_rules_configured = anytrue([
-    for rule in var.firewall_extra_rules : rule.direction == "out"
+    for rule in var.firewall_extra_rules : rule.direction == "out" && contains(rule.targets, "bare_metal")
   ])
 
   bare_metal_firewall_input_rules = concat(
@@ -381,7 +381,7 @@ locals {
           } : {
           destination_ips = length(rule.destination_ips) == 0 ? ["0.0.0.0/0", "::/0"] : rule.destination_ips
         }
-      )
+      ) if contains(rule.targets, "cloud")
     ] :
     format("%s-%s-%s",
       lookup(rule, "direction", "null"),
