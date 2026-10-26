@@ -596,7 +596,7 @@ variable "bare_metal_nodepools" {
   validation {
     condition = alltrue(flatten([
       for np in var.bare_metal_nodepools : [
-        for server in np.servers : try(cidrcontains(local.network_bare_metal_shared_ipv4_cidr, server.private_ipv4), false)
+        for server in np.servers : try(cidrhost("${server.private_ipv4}/${local.bare_metal_vswitch_ipv4_cidr_prefix_size}", 0) == cidrhost(local.network_bare_metal_shared_ipv4_cidr, 0), false)
       ]
     ]))
     error_message = "Bare metal server private_ipv4 values must be inside the shared bare metal subnet."
