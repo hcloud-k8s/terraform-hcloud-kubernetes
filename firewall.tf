@@ -458,7 +458,9 @@ resource "hcloud_firewall" "this" {
 }
 
 resource "terraform_data" "bare_metal_firewall" {
-  for_each = local.bare_metal_enabled ? local.bare_metal_servers : {}
+  for_each = local.bare_metal_enabled ? {
+    for name, server in local.bare_metal_servers : name => server if server.robot_firewall_enabled
+  } : {}
 
   triggers_replace = {
     server_number = each.value.number
@@ -488,6 +490,15 @@ resource "terraform_data" "bare_metal_firewall" {
         case "$status" in
           200|201|202)
             break
+            ;;
+          404)
+            if jq -e '.error.code == "FIREWALL_NOT_AVAILABLE"' "$response_file" >/dev/null 2>&1; then
+              printf 'Robot firewall is not available for bare metal server %s (e.g. 10G uplink). Set robot_firewall_enabled = false for this server in bare_metal_nodepools and protect it otherwise.\n' "${each.value.number}" >&2
+              exit 1
+            fi
+            printf 'Unexpected Robot API status while applying firewall for server %s: 404\n' "${each.value.number}" >&2
+            cat "$response_file" >&2
+            exit 1
             ;;
           409)
             printf 'Robot firewall update for server %s is still in process, retrying (%s/100)\n' "${each.value.number}" "$attempt"
