@@ -53,6 +53,8 @@ locals {
           local.bare_metal_public_ipv6_enabled[server_name] ? [
             {
               gateway = "fe80::1"
+              # Spelled out so both routes keep a numeric metric (HCL would unify them into strings)
+              metric = 1025
             }
           ] : []
         )
