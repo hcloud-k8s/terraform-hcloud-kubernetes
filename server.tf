@@ -2,14 +2,15 @@ locals {
   bare_metal_servers = length(local.bare_metal_nodepools) > 0 ? merge([
     for np in local.bare_metal_nodepools : {
       for server in np.servers : "${var.cluster_name}-${np.name}-${server.number}" => {
-        nodepool             = np.name,
-        name                 = "${var.cluster_name}-${np.name}-${server.number}",
-        architecture         = np.architecture,
-        number               = server.number,
-        private_ipv4         = server.private_ipv4,
-        install_disks        = server.install_disks,
-        install_raid_level   = server.install_raid_level,
-        preserve_other_disks = server.preserve_other_disks,
+        nodepool               = np.name,
+        name                   = "${var.cluster_name}-${np.name}-${server.number}",
+        architecture           = np.architecture,
+        number                 = server.number,
+        private_ipv4           = server.private_ipv4,
+        install_disks          = server.install_disks,
+        install_raid_level     = server.install_raid_level,
+        preserve_other_disks   = server.preserve_other_disks,
+        robot_firewall_enabled = server.robot_firewall_enabled,
       }
     }
   ]...) : {}
@@ -310,7 +311,7 @@ resource "terraform_data" "bare_metal_server" {
     }
 
     precondition {
-      condition     = length(local.bare_metal_initialization_firewall_input_rules) <= local.robot_firewall_max_rules_per_direction
+      condition     = !each.value.robot_firewall_enabled || length(local.bare_metal_initialization_firewall_input_rules) <= local.robot_firewall_max_rules_per_direction
       error_message = "Bare metal server ${each.value.number} has ${length(local.bare_metal_initialization_firewall_input_rules)} Robot firewall input rules during initialization, but the maximum is ${local.robot_firewall_max_rules_per_direction}."
     }
   }
@@ -367,6 +368,11 @@ resource "terraform_data" "bare_metal_server" {
     command = <<-EOT
       set -eu
 
+      if [ "$ROBOT_FIREWALL_ENABLED" != "true" ]; then
+        printf 'Robot firewall disabled for bare metal server %s, skipping\n' "${each.value.number}"
+        exit 0
+      fi
+
       printf 'Opening Robot firewall for bare metal server %s\n' "${each.value.number}"
 
       response_file=$(mktemp)
@@ -385,6 +391,15 @@ resource "terraform_data" "bare_metal_server" {
         case "$status" in
           200|201|202)
             break
+            ;;
+          404)
+            if jq -e '.error.code == "FIREWALL_NOT_AVAILABLE"' "$response_file" >/dev/null 2>&1; then
+              printf 'Robot firewall is not available for bare metal server %s (e.g. 10G uplink). Set robot_firewall_enabled = false for this server in bare_metal_nodepools and protect it otherwise.\n' "${each.value.number}" >&2
+              exit 1
+            fi
+            printf 'Unexpected Robot API status while opening firewall for server %s: 404\n' "${each.value.number}" >&2
+            cat "$response_file" >&2
+            exit 1
             ;;
           409)
             printf 'Robot firewall update for server %s is still in process, retrying (%s/100)\n' "${each.value.number}" "$attempt"
@@ -446,6 +461,7 @@ resource "terraform_data" "bare_metal_server" {
 
     environment = {
       ROBOT_FIREWALL_CURL_DATA = jsonencode(local.bare_metal_initialization_firewall_curl_data)
+      ROBOT_FIREWALL_ENABLED   = tostring(each.value.robot_firewall_enabled)
       ROBOT_USER               = var.hcloud_robot_user
       ROBOT_PASSWORD           = nonsensitive(var.hcloud_robot_password)
     }
