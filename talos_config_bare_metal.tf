@@ -46,11 +46,15 @@ locals {
           local.network_public_ipv4_enabled ? [
             {
               gateway = local.bare_metal_server_public_network[server_name].server_ipv4_gateway
+              # Below the vSwitch default route (1024) that private access sets via kernel args
+              metric = 512
             }
           ] : [],
           local.bare_metal_public_ipv6_enabled[server_name] ? [
             {
               gateway = "fe80::1"
+              # Spelled out so both routes keep a numeric metric (HCL would unify them into strings)
+              metric = 1025
             }
           ] : []
         )
