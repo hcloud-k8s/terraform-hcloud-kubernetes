@@ -42,15 +42,18 @@ locals {
             }
           ] : []
         )
+        # Below the ip= kernel argument default route (1024), above talos_extra_routes (512)
         routes = concat(
           local.network_public_ipv4_enabled ? [
             {
               gateway = local.bare_metal_server_public_network[server_name].server_ipv4_gateway
+              metric  = 768
             }
           ] : [],
           local.bare_metal_public_ipv6_enabled[server_name] ? [
             {
               gateway = "fe80::1"
+              metric  = 768
             }
           ] : []
         )
