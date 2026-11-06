@@ -295,6 +295,55 @@ kubectl -n kube-system rollout restart ds/cilium ds/cilium-envoy
 kubectl -n kube-system rollout restart deploy/cilium-operator
 ```
 
+#### Robot Firewall
+
+By default the module manages the [Robot firewall](https://docs.hetzner.com/robot/dedicated-server/firewall/) of every bare metal server. Some servers have none, for example those with a 10G uplink, where the Robot API answers `404 FIREWALL_NOT_AVAILABLE` and the apply fails. Opt out per server with `robot_firewall_enabled = false`:
+
+```hcl
+bare_metal_nodepools = [
+  {
+    name = "bare-metal"
+    servers = [
+      { number = 1111111, private_ipv4 = "10.0.88.2" },                                  # Robot firewall managed
+      { number = 2222222, private_ipv4 = "10.0.88.3", robot_firewall_enabled = false }  # no Robot firewall (10G)
+    ]
+  }
+]
+```
+
+For such a server the module neither opens the Robot firewall for the rescue install nor applies the firewall rules afterwards. Switching an existing server to `false` leaves its current Robot firewall configuration in place; disable it in Robot if it should go as well.
+
+A server without a Robot firewall is reachable from the internet on every port its Talos node listens on, so protect it otherwise, for example with Talos' [ingress firewall](https://docs.siderolabs.com/talos/v1.14/networking/ingress-firewall). `bare_metal_config_patches` applies to all bare metal servers, so servers that keep the Robot firewall get these rules as well:
+
+```hcl
+bare_metal_config_patches = [
+  { apiVersion = "v1alpha1", kind = "NetworkDefaultActionConfig", ingress = "block" },
+  {
+    apiVersion   = "v1alpha1"
+    kind         = "NetworkRuleConfig"
+    name         = "cluster-tcp"
+    portSelector = { ports = ["1-65535"], protocol = "tcp" }
+    ingress      = [{ subnet = "10.0.0.0/16" }, { subnet = "<pod-ipv4-cidr>" }]
+  },
+  {
+    apiVersion   = "v1alpha1"
+    kind         = "NetworkRuleConfig"
+    name         = "cluster-udp"
+    portSelector = { ports = ["1-65535"], protocol = "udp" }
+    ingress      = [{ subnet = "10.0.0.0/16" }, { subnet = "<pod-ipv4-cidr>" }]
+  },
+  {
+    apiVersion   = "v1alpha1"
+    kind         = "NetworkRuleConfig"
+    name         = "apid"
+    portSelector = { ports = [50000], protocol = "tcp" }
+    ingress      = [{ subnet = "<admin-ipv4>/32" }]
+  }
+]
+```
+
+Keep the Talos API reachable from wherever the module runs, and note that Cilium serves NodePorts in eBPF ahead of this firewall.
+
 #### Install Disks and RAID
 
 If `install_disks` and `install_raid_level` are omitted, the module automatically selects the first eligible non-removable disk. Explicit `install_disks` values must be disk IDs from `/dev/disk/by-id`:

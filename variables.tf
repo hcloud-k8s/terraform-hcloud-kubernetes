@@ -496,11 +496,12 @@ variable "bare_metal_nodepools" {
     name         = string
     architecture = optional(string, "amd64")
     servers = list(object({
-      number               = number
-      private_ipv4         = string
-      install_disks        = optional(list(string))
-      install_raid_level   = optional(string)
-      preserve_other_disks = optional(bool, false)
+      number                 = number
+      private_ipv4           = string
+      install_disks          = optional(list(string))
+      install_raid_level     = optional(string)
+      preserve_other_disks   = optional(bool, false)
+      robot_firewall_enabled = optional(bool, true)
     }))
     labels      = optional(map(string), {})
     annotations = optional(map(string), {})
