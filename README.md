@@ -273,6 +273,28 @@ bare_metal_nodepools = [
 ]
 ```
 
+Talos configuration patches for one pool go to its `config_patches` as YAML strings, applied after `bare_metal_config_patches`:
+
+```hcl
+bare_metal_nodepools = [
+  {
+    name = "bare-metal"
+    servers = [
+      { number = 1111111, private_ipv4 = "10.0.88.2" }
+    ]
+    config_patches = [
+      yamlencode({
+        apiVersion = "v1alpha1"
+        kind       = "SysctlConfig"
+        params = {
+          "vm.max_map_count" = "262144"
+        }
+      })
+    ]
+  }
+]
+```
+
 #### vSwitch Network
 
 The module creates the vSwitch and connects it to the Hetzner Cloud Network. To use an existing vSwitch instead, set:
