@@ -30,7 +30,8 @@ locals {
           { key = "node-role.kubernetes.io/control-plane", value = "", effect = "NoSchedule" }
         ]
       ),
-      count = np.count,
+      count            = np.count,
+      primary_ipv4_ids = np.primary_ipv4_ids,
     }
   ]
 
@@ -60,9 +61,10 @@ locals {
         "^(?P<key>[^=:]+)=?(?P<value>[^=:]*?):(?P<effect>.+)$",
         taint
       )],
-      count           = np.count,
-      subnet          = np.subnet,
-      placement_group = np.placement_group
+      count            = np.count,
+      subnet           = np.subnet,
+      placement_group  = np.placement_group,
+      primary_ipv4_ids = np.primary_ipv4_ids
     }
   ]
 
