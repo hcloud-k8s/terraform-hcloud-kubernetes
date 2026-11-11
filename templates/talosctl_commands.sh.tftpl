@@ -1,10 +1,18 @@
 
 talosconfig=$(mktemp)
-cleanup() { rm -f "$talosconfig"; }
+kubeconfig=$(mktemp)
+cleanup() { rm -f "$talosconfig" "$kubeconfig"; }
 trap 'cleanup' EXIT
 trap 'exit 1' HUP INT TERM QUIT PIPE
 
 printf '%s' "$TALOSCONFIG" > "$talosconfig"
+# Every health-gate resource passes the kubeconfig content from state in
+# CLUSTER_KUBECONFIG_CONTENT. It is empty only on the bootstrap path, where the
+# Kubernetes API does not exist yet; the gate then falls back to plan-time
+# lists. There is no path plumbing: a fresh working copy has no kubeconfig file.
+if [ -n "$${CLUSTER_KUBECONFIG_CONTENT:-}" ]; then
+  printf '%s' "$CLUSTER_KUBECONFIG_CONTENT" > "$kubeconfig"
+fi
 
 talos_retry_or_exit() {
   retry_var=$1
@@ -20,6 +28,11 @@ talos_retry_or_exit() {
   sleep 10
 }
 
+# The plan-time list is the fallback for resources with empty kubeconfig
+# content: the bootstrap path, where the Kubernetes API does not exist yet, and
+# the upgrade resources, which run before the control-plane apply and cannot
+# reference the kubeconfig without a dependency cycle. Every other gate goes
+# through talos_wait_for_live_health.
 talos_health_check() {
   if ! ${healthcheck_enabled}; then
     return 0
@@ -35,9 +48,63 @@ talos_health_check() {
 }
 
 talos_wait_for_health() {
+  if [ -s "$kubeconfig" ]; then
+    talos_wait_for_live_health
+    return
+  fi
   health_retry=1
   until talos_health_check; do
     talos_retry_or_exit health_retry
+  done
+}
+
+# The expected node set for a live gate is the Kubernetes Node list read at
+# gate time, split by the control-plane role label. A plan can go stale before
+# it is applied, and the Talos member list can outlive a node the autoscaler has
+# deleted; neither is a statement about the nodes that exist now. A VIP is not
+# a Node either, so it cannot leak into the set. A node that joins or leaves
+# between attempts is picked up by the next attempt.
+talos_health_node_addresses() {
+  kubectl --kubeconfig "$kubeconfig" get nodes -o json \
+    | jq -r --arg want "$1" '
+        .items[]
+        | select(((.metadata.labels // {})["node-role.kubernetes.io/control-plane"] != null) == ($want == "controlplane"))
+        | .status.addresses[]
+        | select(.type == "InternalIP")
+        | .address
+      ' \
+    | paste -s -d , -
+}
+
+talos_health_check_live_nodes() {
+  if ! ${healthcheck_enabled}; then
+    return 0
+  fi
+  if [ ! -s "$kubeconfig" ]; then
+    printf '%s\n' "a live-node health gate needs CLUSTER_KUBECONFIG_CONTENT" >&2
+    return 1
+  fi
+
+  control_plane_nodes=$(talos_health_node_addresses controlplane)
+  if [ -z "$control_plane_nodes" ]; then
+    printf '%s\n' "kubectl get nodes returned no control-plane addresses" >&2
+    return 1
+  fi
+  worker_nodes=$(talos_health_node_addresses worker)
+
+  talosctl health \
+    --talosconfig "$talosconfig" \
+    --server=true \
+    --control-plane-nodes "$control_plane_nodes" \
+    --worker-nodes "$worker_nodes" \
+    --nodes "${talos_primary_node}" \
+    "$@"
+}
+
+talos_wait_for_live_health() {
+  live_health_retry=1
+  until talos_health_check_live_nodes; do
+    talos_retry_or_exit live_health_retry
   done
 }
 
