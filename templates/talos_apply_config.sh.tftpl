@@ -3,18 +3,56 @@ talos_wait_for_health
 %{ endif ~}
 
 set -- ${join(" ", target_nodes)}
-for host in "$@"; do
+for target in "$@"; do
   (
     set -eu
+
+    # A target is either a plain address or `name=address`. The name is the
+    # node's stable identity (its cluster member and cloud server name); the
+    # address is what talosctl talks to. An address alone is not an identity:
+    # the cloud provider hands a private IP address out again for a new node
+    # while the deleted node's entry is still in the cluster's member list, so
+    # a key built from the address would collide with the entry of a node that
+    # no longer exists.
+    host_key=$(printf '%s' "$target" | sed 's/=.*//')
+    host_addr=$(printf '%s' "$target" | sed 's/^[^=]*=//')
+
+    # A named target is checked against the node that answers on the address:
+    # the address may have been handed to another node, and the configuration of
+    # the member that used to hold it would give that node the wrong labels and
+    # taints. An address that answers nothing is skipped too — the node behind
+    # the member entry is gone, and a new node takes its configuration from the
+    # autoscaler's node configuration secret when it is created.
+    case "$target" in
+      *=*)
+        probe_retry=1
+        actual_hostname=""
+        while : ; do
+          if actual_hostname=$(talos_node_hostname --nodes "$host_addr" 2>/dev/null); then
+            break
+          fi
+          if [ "$probe_retry" -ge 3 ]; then
+            printf '%s\n' "Skipping $host_addr: no node answers for member $host_key"
+            exit 0
+          fi
+          probe_retry=$((probe_retry + 1))
+          sleep 5
+        done
+        if [ "$actual_hostname" != "$host_key" ]; then
+          printf '%s\n' "Skipping $host_addr: it is $actual_hostname now, not member $host_key"
+          exit 0
+        fi
+        ;;
+    esac
 
     machine_config=$(mktemp)
     cleanup() { rm -f "$machine_config"; }
     trap 'cleanup' EXIT
     trap 'exit 1' HUP INT TERM QUIT PIPE
 
-    printf '%s\n' "Applying machine configuration to node: $host"
+    printf '%s\n' "Applying machine configuration to node: $host_key ($host_addr)"
 
-    host_env_suffix=$(printf '%s' "$host" | tr . _)
+    host_env_suffix=$(printf '%s' "$host_key" | tr '.-' '__')
     mc_env_name="TALOS_MC_$host_env_suffix"
     eval "machine_config_value=\$$mc_env_name"
     printf '%s' "$machine_config_value" > "$machine_config"
@@ -26,15 +64,15 @@ for host in "$@"; do
     fi
 
     retry=1
-    until talos_apply_config --nodes "$host" --file "$machine_config" --mode "$resolved_apply_mode"; do
+    until talos_apply_config --nodes "$host_addr" --file "$machine_config" --mode "$resolved_apply_mode"; do
       talos_retry_or_exit retry
     done
 
     if [ "$resolved_apply_mode" = "staged" ] && [ "${staged_configuration_automatic_reboot_enabled}" = "true" ]; then
-      printf '%s\n' "Rebooting node: $host"
+      printf '%s\n' "Rebooting node: $host_addr"
 
       retry=1
-      until talos_reboot --nodes "$host"; do
+      until talos_reboot --nodes "$host_addr"; do
         talos_retry_or_exit retry
       done
 
@@ -42,7 +80,7 @@ for host in "$@"; do
       talos_wait_for_health
 %{ endif ~}
 
-      printf '%s\n' "Node $host rebooted successfully"
+      printf '%s\n' "Node $host_addr rebooted successfully"
     fi
   )
 done

@@ -41,6 +41,16 @@ talos_wait_for_health() {
   done
 }
 
+# The hostname the node behind an address reports, so a caller can tell whether
+# the node it is about to configure is still the one it means: a provider hands
+# a deleted node's address to a new node.
+talos_node_hostname() {
+  talosctl get hostname \
+    --talosconfig "$talosconfig" \
+    -o jsonpath='{.spec.hostname}' \
+    "$@"
+}
+
 talos_upgrade() {
   talosctl upgrade \
     --talosconfig "$talosconfig" \
