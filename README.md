@@ -281,6 +281,10 @@ The module creates the vSwitch and connects it to the Hetzner Cloud Network. To 
 hcloud_vswitch_id = 12345
 ```
 
+The module attaches its bare metal servers to the vSwitch and detaches a server again when it is removed from `bare_metal_nodepools`. Other servers on the vSwitch, for example a database server attached outside of this module, are left untouched.
+
+An existing deployment can switch from the module-created vSwitch to `hcloud_vswitch_id` (for example with its own ID). The module then drops the vSwitch from its state but keeps the vSwitch in Robot as long as any server is still attached. The same applies when the cluster is destroyed.
+
 Each server needs a unique `private_ipv4` from the vSwitch subnet. For the default `10.0.0.0/16` network, the bare metal subnet can also be calculated with:
 
 ```sh

@@ -108,6 +108,32 @@ resource "terraform_data" "vswitch" {
         exit 0
       fi
 
+      # The module detaches its own servers before this runs. Servers that are still attached were
+      # attached by something else (or this resource is dropped because hcloud_vswitch_id is now
+      # set), so the vSwitch is kept instead of cutting those servers off.
+      status=$(curl -sS -o "$response_file" -w '%%{http_code}' \
+        -u "$ROBOT_USER:$ROBOT_PASSWORD" \
+        "${self.input.robot_api_url}/vswitch/$vswitch_id" || true)
+
+      case "$status" in
+        200)
+          ;;
+        404)
+          exit 0
+          ;;
+        *)
+          printf 'Unexpected Robot API status while reading vSwitch %s before cancelling it: %s\n' "$vswitch_id" "$status" >&2
+          exit 1
+          ;;
+      esac
+
+      attached_servers=$(jq -r '[.server[]? | (.server_number | tostring)] | join(", ")' "$response_file")
+
+      if [ -n "$attached_servers" ]; then
+        printf 'Keeping vSwitch %s: servers %s are still attached. Cancel it in Robot once it is no longer needed.\n' "$vswitch_id" "$attached_servers"
+        exit 0
+      fi
+
       status=$(curl -sS -o /dev/null -w '%%{http_code}' \
         -u "$ROBOT_USER:$ROBOT_PASSWORD" \
         -X DELETE \
@@ -213,12 +239,24 @@ locals {
   hcloud_vswitch_vlan_id = local.bare_metal_enabled && var.hcloud_robot_user != null ? tonumber(nonsensitive(data.external.vswitch[0].result.vlan)) : var.hcloud_vswitch_vlan_id
 }
 
-resource "terraform_data" "vswitch_attachment" {
-  count = local.bare_metal_enabled && var.hcloud_robot_user != null ? 1 : 0
+# One instance per bare metal server. The state records which servers this module attached, so
+# only those are detached again. Servers attached to the vSwitch by anything else are left alone.
+resource "terraform_data" "vswitch_server" {
+  # The Robot user may be passed in as a sensitive value. Only whether it is set is used here.
+  for_each = local.bare_metal_enabled && nonsensitive(var.hcloud_robot_user != null) ? {
+    for server in local.bare_metal_servers : tostring(server.number) => server
+  } : {}
 
   triggers_replace = {
-    vswitch_id     = local.hcloud_vswitch_id
-    server_numbers = sort([for server in local.bare_metal_servers : tostring(server.number)])
+    vswitch_id    = local.hcloud_vswitch_id
+    server_number = each.key
+  }
+
+  # Not part of triggers_replace: new Robot credentials must not detach and re-attach the servers.
+  input = {
+    robot_api_url  = var.hcloud_robot_api_url
+    robot_user     = var.hcloud_robot_user
+    robot_password = var.hcloud_robot_password
   }
 
   provisioner "local-exec" {
@@ -226,256 +264,218 @@ resource "terraform_data" "vswitch_attachment" {
     command = <<-EOT
       set -eu
 
-      printf 'Checking vSwitch %s for bare metal servers to attach\n' "${self.triggers_replace.vswitch_id}"
+      vswitch_id="${self.triggers_replace.vswitch_id}"
+      server_number="${self.triggers_replace.server_number}"
+      vswitch_url="${self.input.robot_api_url}/vswitch/$vswitch_id"
 
       response_file=$(mktemp)
-      curl_config=$(mktemp)
-      cleanup() { rm -f "$response_file" "$curl_config"; }
+      cleanup() { rm -f "$response_file"; }
       trap 'cleanup' EXIT
       trap 'exit 1' HUP INT TERM QUIT PIPE
 
-      status=$(curl -sS -o "$response_file" -w '%%{http_code}' \
-        -u "$ROBOT_USER:$ROBOT_PASSWORD" \
-        "${var.hcloud_robot_api_url}/vswitch/${self.triggers_replace.vswitch_id}" || true)
+      # Prints the status of this server on the vSwitch, or "absent".
+      server_status() {
+        status=$(curl -sS -o "$response_file" -w '%%{http_code}' \
+          -u "$ROBOT_USER:$ROBOT_PASSWORD" \
+          "$vswitch_url" || true)
 
-      case "$status" in
-        200)
-          ;;
-        *)
-          printf 'Unexpected Robot API status while checking vSwitch %s server attachments: %s\n' "${self.triggers_replace.vswitch_id}" "$status" >&2
+        if [ "$status" != "200" ]; then
+          printf 'Unexpected Robot API status while reading vSwitch %s: %s\n' "$vswitch_id" "$status" >&2
           cat "$response_file" >&2
-          exit 1
-          ;;
-      esac
+          return 1
+        fi
 
-      server_numbers_to_attach=$(jq -c --argjson server_numbers "$SERVER_NUMBERS" '
-        [$server_numbers[] as $server_number | select(([.server[]? | (.server_number | tostring)] | index($server_number) | not)) | $server_number]
-      ' "$response_file")
-      server_numbers_to_attach_label=$(printf '%s' "$server_numbers_to_attach" | jq -r 'join(", ")')
+        jq -r --arg server_number "$server_number" '
+          [.server[]? | select((.server_number | tostring) == $server_number) | .status] |
+          if length == 0 then "absent" else .[0] end
+        ' "$response_file"
+      }
 
-      if [ "$server_numbers_to_attach" = "[]" ]; then
-        printf 'No bare metal servers to attach to vSwitch %s\n' "${self.triggers_replace.vswitch_id}"
-      else
-        printf 'Attaching bare metal servers %s to vSwitch %s\n' "$server_numbers_to_attach_label" "${self.triggers_replace.vswitch_id}"
+      attachment_status=$(server_status)
 
-        printf '%s' "$server_numbers_to_attach" | jq -r '.[] | "data-urlencode = \"server[]=" + . + "\""' > "$curl_config"
+      if [ "$attachment_status" = "absent" ]; then
+        printf 'Attaching bare metal server %s to vSwitch %s\n' "$server_number" "$vswitch_id"
 
         for attempt in $(seq 1 100); do
           status=$(curl -sS -o "$response_file" -w '%%{http_code}' \
             -u "$ROBOT_USER:$ROBOT_PASSWORD" \
-            --config "$curl_config" \
-            "${var.hcloud_robot_api_url}/vswitch/${self.triggers_replace.vswitch_id}/server" || true)
+            --data-urlencode "server[]=$server_number" \
+            "$vswitch_url/server" || true)
 
           case "$status" in
             200|201|202|204)
               break
               ;;
             409)
-              printf 'vSwitch %s server attachment for servers %s is still in process, retrying (%s/100)\n' "${self.triggers_replace.vswitch_id}" "$server_numbers_to_attach_label" "$attempt"
+              printf 'vSwitch %s is busy, retrying to attach server %s (%s/100)\n' "$vswitch_id" "$server_number" "$attempt"
               sleep 10
               ;;
             *)
-              printf 'Unexpected Robot API status while attaching bare metal servers %s to vSwitch %s: %s\n' "$server_numbers_to_attach_label" "${self.triggers_replace.vswitch_id}" "$status" >&2
+              printf 'Unexpected Robot API status while attaching bare metal server %s to vSwitch %s: %s\n' "$server_number" "$vswitch_id" "$status" >&2
               cat "$response_file" >&2
               exit 1
               ;;
           esac
         done
 
-        if [ "$status" != "200" ] && [ "$status" != "201" ] && [ "$status" != "202" ] && [ "$status" != "204" ]; then
-          printf 'Attaching bare metal servers %s to vSwitch %s did not complete after retries, last status: %s\n' "$server_numbers_to_attach_label" "${self.triggers_replace.vswitch_id}" "$status" >&2
-          exit 1
-        fi
-
-        printf 'Waiting 60 seconds for vSwitch %s server attachment to apply\n' "${self.triggers_replace.vswitch_id}"
-        sleep 60
+        case "$status" in
+          200|201|202|204) ;;
+          *)
+            printf 'Attaching bare metal server %s to vSwitch %s did not complete after retries, last status: %s\n' "$server_number" "$vswitch_id" "$status" >&2
+            exit 1
+            ;;
+        esac
       fi
 
       for attempt in $(seq 1 100); do
-        status=$(curl -sS -o "$response_file" -w '%%{http_code}' \
-          -u "$ROBOT_USER:$ROBOT_PASSWORD" \
-          "${var.hcloud_robot_api_url}/vswitch/${self.triggers_replace.vswitch_id}" || true)
+        attachment_status=$(server_status)
 
-        case "$status" in
-          200)
-            attachment_status=$(jq -r --argjson server_numbers "$SERVER_NUMBERS" '
-              [.server[]? | select((.server_number | tostring) as $server_number | $server_numbers | index($server_number)) | .status] as $statuses |
-              if ($statuses | length) != ($server_numbers | length) then "missing"
-              elif any($statuses[]; . == "failed") then "failed"
-              elif all($statuses[]; . == "ready") then "ready"
-              else "in process"
-              end
-            ' "$response_file")
-
-            case "$attachment_status" in
-              ready)
-                break
-                ;;
-              "in process"|missing)
-                printf 'vSwitch %s server attachment for servers %s is not ready yet (%s), waiting (%s/100)\n' "${self.triggers_replace.vswitch_id}" "$SERVER_NUMBERS_LABEL" "$attachment_status" "$attempt"
-                sleep 10
-                ;;
-              failed)
-                printf 'vSwitch %s server attachment failed for servers %s\n' "${self.triggers_replace.vswitch_id}" "$SERVER_NUMBERS_LABEL" >&2
-                exit 1
-                ;;
-              *)
-                printf 'Unexpected vSwitch %s server attachment status for servers %s: %s\n' "${self.triggers_replace.vswitch_id}" "$SERVER_NUMBERS_LABEL" "$attachment_status" >&2
-                exit 1
-                ;;
-            esac
+        case "$attachment_status" in
+          ready)
+            printf 'Bare metal server %s is attached to vSwitch %s\n' "$server_number" "$vswitch_id"
+            exit 0
+            ;;
+          failed)
+            printf 'vSwitch %s attachment failed for server %s\n' "$vswitch_id" "$server_number" >&2
+            exit 1
             ;;
           *)
-            printf 'Unexpected Robot API status while checking vSwitch %s server attachment for servers %s: %s\n' "${self.triggers_replace.vswitch_id}" "$SERVER_NUMBERS_LABEL" "$status" >&2
-            cat "$response_file" >&2
-            exit 1
+            printf 'vSwitch %s attachment of server %s is not ready yet (%s), waiting (%s/100)\n' "$vswitch_id" "$server_number" "$attachment_status" "$attempt"
+            sleep 10
             ;;
         esac
       done
 
-      if [ "$attachment_status" != "ready" ]; then
-        printf 'vSwitch %s server attachment for servers %s did not become ready after retries, last status: %s\n' "${self.triggers_replace.vswitch_id}" "$SERVER_NUMBERS_LABEL" "$attachment_status" >&2
-        exit 1
-      fi
-
-      printf 'Bare metal servers %s attached to vSwitch %s\n' "$SERVER_NUMBERS_LABEL" "${self.triggers_replace.vswitch_id}"
+      printf 'vSwitch %s attachment of server %s did not become ready after retries, last status: %s\n' "$vswitch_id" "$server_number" "$attachment_status" >&2
+      exit 1
     EOT
 
     environment = {
-      ROBOT_USER           = var.hcloud_robot_user
-      ROBOT_PASSWORD       = nonsensitive(var.hcloud_robot_password)
-      SERVER_NUMBERS       = jsonencode(self.triggers_replace.server_numbers)
-      SERVER_NUMBERS_LABEL = join(", ", self.triggers_replace.server_numbers)
+      ROBOT_USER     = self.input.robot_user
+      ROBOT_PASSWORD = nonsensitive(self.input.robot_password)
     }
   }
 
   provisioner "local-exec" {
+    when    = destroy
     quiet   = true
     command = <<-EOT
       set -eu
 
-      printf 'Checking vSwitch %s for bare metal servers to detach\n' "${self.triggers_replace.vswitch_id}"
+      vswitch_id="${self.triggers_replace.vswitch_id}"
+      server_number="${self.triggers_replace.server_number}"
+      vswitch_url="${self.input.robot_api_url}/vswitch/$vswitch_id"
 
       response_file=$(mktemp)
-      curl_config=$(mktemp)
-      cleanup() { rm -f "$response_file" "$curl_config"; }
+      cleanup() { rm -f "$response_file"; }
       trap 'cleanup' EXIT
       trap 'exit 1' HUP INT TERM QUIT PIPE
 
-      status=$(curl -sS -o "$response_file" -w '%%{http_code}' \
-        -u "$ROBOT_USER:$ROBOT_PASSWORD" \
-        "${var.hcloud_robot_api_url}/vswitch/${self.triggers_replace.vswitch_id}" || true)
+      # Prints the status of this server on the vSwitch, or "absent" (also when the vSwitch is gone).
+      server_status() {
+        status=$(curl -sS -o "$response_file" -w '%%{http_code}' \
+          -u "$ROBOT_USER:$ROBOT_PASSWORD" \
+          "$vswitch_url" || true)
 
-      case "$status" in
-        200)
-          ;;
-        *)
-          printf 'Unexpected Robot API status while checking vSwitch %s server attachments: %s\n' "${self.triggers_replace.vswitch_id}" "$status" >&2
-          cat "$response_file" >&2
-          exit 1
-          ;;
-      esac
+        case "$status" in
+          200) ;;
+          404)
+            printf 'absent'
+            return 0
+            ;;
+          *)
+            printf 'Unexpected Robot API status while reading vSwitch %s: %s\n' "$vswitch_id" "$status" >&2
+            cat "$response_file" >&2
+            return 1
+            ;;
+        esac
 
-      server_numbers_to_detach=$(jq -c --argjson server_numbers "$SERVER_NUMBERS" '
-        [.server[]? | (.server_number | tostring) as $server_number | select(($server_numbers | index($server_number) | not)) | $server_number]
-      ' "$response_file")
-      server_numbers_to_detach_label=$(printf '%s' "$server_numbers_to_detach" | jq -r 'join(", ")')
+        jq -r --arg server_number "$server_number" '
+          if .cancelled == true then "absent" else
+            [.server[]? | select((.server_number | tostring) == $server_number) | .status] |
+            if length == 0 then "absent" else .[0] end
+          end
+        ' "$response_file"
+      }
 
-      if [ "$server_numbers_to_detach" = "[]" ]; then
-        printf 'No bare metal servers to detach from vSwitch %s\n' "${self.triggers_replace.vswitch_id}"
+      attachment_status=$(server_status)
+
+      if [ "$attachment_status" = "absent" ]; then
+        printf 'Bare metal server %s is not attached to vSwitch %s\n' "$server_number" "$vswitch_id"
         exit 0
       fi
 
-      printf 'Detaching bare metal servers %s from vSwitch %s\n' "$server_numbers_to_detach_label" "${self.triggers_replace.vswitch_id}"
-
-      printf '%s' "$server_numbers_to_detach" | jq -r '.[] | "data-urlencode = \"server[]=" + . + "\""' > "$curl_config"
+      printf 'Detaching bare metal server %s from vSwitch %s\n' "$server_number" "$vswitch_id"
 
       for attempt in $(seq 1 100); do
         status=$(curl -sS -o "$response_file" -w '%%{http_code}' \
           -u "$ROBOT_USER:$ROBOT_PASSWORD" \
           -X DELETE \
-          --config "$curl_config" \
-          "${var.hcloud_robot_api_url}/vswitch/${self.triggers_replace.vswitch_id}/server" || true)
+          --data-urlencode "server[]=$server_number" \
+          "$vswitch_url/server" || true)
 
         case "$status" in
-          200|202|204)
+          200|202|204|404)
             break
             ;;
           409)
-            printf 'vSwitch %s server cleanup for servers %s is still in process, retrying (%s/100)\n' "${self.triggers_replace.vswitch_id}" "$server_numbers_to_detach_label" "$attempt"
+            printf 'vSwitch %s is busy, retrying to detach server %s (%s/100)\n' "$vswitch_id" "$server_number" "$attempt"
             sleep 10
             ;;
           *)
-            printf 'Unexpected Robot API status while detaching bare metal servers %s from vSwitch %s: %s\n' "$server_numbers_to_detach_label" "${self.triggers_replace.vswitch_id}" "$status" >&2
+            printf 'Unexpected Robot API status while detaching bare metal server %s from vSwitch %s: %s\n' "$server_number" "$vswitch_id" "$status" >&2
             cat "$response_file" >&2
             exit 1
             ;;
         esac
       done
 
-      if [ "$status" != "200" ] && [ "$status" != "202" ] && [ "$status" != "204" ]; then
-        printf 'Detaching bare metal servers %s from vSwitch %s did not complete after retries, last status: %s\n' "$server_numbers_to_detach_label" "${self.triggers_replace.vswitch_id}" "$status" >&2
-        exit 1
-      fi
-
-      printf 'Waiting 60 seconds for vSwitch %s server cleanup to apply\n' "${self.triggers_replace.vswitch_id}"
-      sleep 60
+      case "$status" in
+        200|202|204|404) ;;
+        *)
+          printf 'Detaching bare metal server %s from vSwitch %s did not complete after retries, last status: %s\n' "$server_number" "$vswitch_id" "$status" >&2
+          exit 1
+          ;;
+      esac
 
       for attempt in $(seq 1 100); do
-        status=$(curl -sS -o "$response_file" -w '%%{http_code}' \
-          -u "$ROBOT_USER:$ROBOT_PASSWORD" \
-          "${var.hcloud_robot_api_url}/vswitch/${self.triggers_replace.vswitch_id}" || true)
+        attachment_status=$(server_status)
 
-        case "$status" in
-          200)
-            cleanup_status=$(jq -r --argjson server_numbers_to_detach "$server_numbers_to_detach" '
-              [.server[]? | select((.server_number | tostring) as $server_number | ($server_numbers_to_detach | index($server_number))) | .status] as $statuses |
-              if ($statuses | length) == 0 then "removed"
-              elif any($statuses[]; . == "failed") then "failed"
-              else "in process"
-              end
-            ' "$response_file")
-
-            case "$cleanup_status" in
-              removed)
-                break
-                ;;
-              "in process")
-                printf 'vSwitch %s server cleanup for servers %s is not done yet, waiting (%s/100)\n' "${self.triggers_replace.vswitch_id}" "$server_numbers_to_detach_label" "$attempt"
-                sleep 10
-                ;;
-              failed)
-                printf 'vSwitch %s server cleanup failed for servers %s\n' "${self.triggers_replace.vswitch_id}" "$server_numbers_to_detach_label" >&2
-                exit 1
-                ;;
-              *)
-                printf 'Unexpected vSwitch %s server cleanup status for servers %s: %s\n' "${self.triggers_replace.vswitch_id}" "$server_numbers_to_detach_label" "$cleanup_status" >&2
-                exit 1
-                ;;
-            esac
+        case "$attachment_status" in
+          absent)
+            printf 'Bare metal server %s detached from vSwitch %s\n' "$server_number" "$vswitch_id"
+            exit 0
+            ;;
+          failed)
+            printf 'vSwitch %s detachment failed for server %s\n' "$vswitch_id" "$server_number" >&2
+            exit 1
             ;;
           *)
-            printf 'Unexpected Robot API status while checking vSwitch %s server cleanup for servers %s: %s\n' "${self.triggers_replace.vswitch_id}" "$server_numbers_to_detach_label" "$status" >&2
-            cat "$response_file" >&2
-            exit 1
+            printf 'vSwitch %s detachment of server %s is not done yet (%s), waiting (%s/100)\n' "$vswitch_id" "$server_number" "$attachment_status" "$attempt"
+            sleep 10
             ;;
         esac
       done
 
-      if [ "$cleanup_status" != "removed" ]; then
-        printf 'vSwitch %s server cleanup for servers %s did not complete after retries, last status: %s\n' "${self.triggers_replace.vswitch_id}" "$server_numbers_to_detach_label" "$cleanup_status" >&2
-        exit 1
-      fi
-
-      printf 'Bare metal servers %s detached from vSwitch %s\n' "$server_numbers_to_detach_label" "${self.triggers_replace.vswitch_id}"
+      printf 'vSwitch %s detachment of server %s did not complete after retries, last status: %s\n' "$vswitch_id" "$server_number" "$attachment_status" >&2
+      exit 1
     EOT
 
     environment = {
-      ROBOT_USER     = var.hcloud_robot_user
-      ROBOT_PASSWORD = nonsensitive(var.hcloud_robot_password)
-      SERVER_NUMBERS = jsonencode(self.triggers_replace.server_numbers)
+      ROBOT_USER     = self.input.robot_user
+      ROBOT_PASSWORD = nonsensitive(self.input.robot_password)
     }
   }
 
   depends_on = [data.external.vswitch]
+}
+
+# Replaced by terraform_data.vswitch_server. Forget the old instance instead of destroying it, so the
+# upgrade plan shows no destroy. The old resource never called the Robot API on destroy.
+removed {
+  from = terraform_data.vswitch_attachment
+
+  lifecycle {
+    destroy = false
+  }
 }
