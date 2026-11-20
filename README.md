@@ -295,6 +295,29 @@ kubectl -n kube-system rollout restart ds/cilium ds/cilium-envoy
 kubectl -n kube-system rollout restart deploy/cilium-operator
 ```
 
+#### Nodepool Image Extensions
+
+Extra Talos image extensions for one pool go to its `talos_image_extensions`, on top of the global `talos_image_extensions`. This covers hardware only one pool has, for example GPUs:
+
+```hcl
+bare_metal_nodepools = [
+  {
+    name   = "gpu"
+    labels = { "nvidia.com/gpu.present" = "true" }
+    taints = ["nvidia.com/gpu=present:NoSchedule"]
+    servers = [
+      { number = 3333333, private_ipv4 = "10.0.88.4" }
+    ]
+    talos_image_extensions = [
+      "siderolabs/nvidia-open-gpu-kernel-modules-production",
+      "siderolabs/nvidia-container-toolkit-production"
+    ]
+  }
+]
+```
+
+Extension names must match exactly, for example `siderolabs/nvidia-container-toolkit-production`, not `nvidia-container-toolkit`. Pools without extra extensions keep their schematic unchanged. New servers are installed with their pool's schematic. Changing a pool's `talos_image_extensions` updates the schematic of its existing servers but does not start an upgrade by itself; roll it out with `tofu apply -replace=terraform_data.upgrade_bare_metal`, which skips every node already on the target Talos version and schematic.
+
 #### Robot Firewall
 
 By default the module manages the [Robot firewall](https://docs.hetzner.com/robot/dedicated-server/firewall/) of every bare metal server. Some servers have none, for example those with a 10G uplink, where the Robot API answers `404 FIREWALL_NOT_AVAILABLE` and the apply fails. Opt out per server with `robot_firewall_enabled = false`:
