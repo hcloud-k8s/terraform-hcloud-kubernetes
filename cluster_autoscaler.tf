@@ -53,6 +53,9 @@ data "helm_template" "cluster_autoscaler" {
     yamlencode({
       cloudProvider = local.cluster_autoscaler_cloud_provider
       replicaCount  = local.control_plane_sum > 1 ? 2 : 1
+      podAnnotations = {
+        "checksum/cluster-config" = sha256(local.cluster_autoscaler_cluster_config_manifest.data["cluster-config"])
+      }
       podDisruptionBudget = {
         minAvailable   = null
         maxUnavailable = 1
