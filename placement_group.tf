@@ -26,3 +26,16 @@ resource "hcloud_placement_group" "worker" {
     role     = "worker"
   }
 }
+
+resource "hcloud_placement_group" "cluster_autoscaler" {
+  for_each = { for np in local.cluster_autoscaler_nodepools : np.name => np if np.placement_group }
+
+  name = "${var.cluster_name}-${each.key}-pg"
+  type = "spread"
+
+  labels = {
+    cluster  = var.cluster_name,
+    nodepool = each.key,
+    role     = "worker"
+  }
+}

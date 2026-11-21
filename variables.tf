@@ -685,15 +685,16 @@ variable "cluster_autoscaler_image_tag" {
 
 variable "cluster_autoscaler_nodepools" {
   type = list(object({
-    name        = string
-    location    = string
-    type        = string
-    labels      = optional(map(string), {})
-    annotations = optional(map(string), {})
-    taints      = optional(list(string), [])
-    subnet      = optional(string)
-    min         = optional(number, 0)
-    max         = number
+    name            = string
+    location        = string
+    type            = string
+    labels          = optional(map(string), {})
+    annotations     = optional(map(string), {})
+    taints          = optional(list(string), [])
+    subnet          = optional(string)
+    min             = optional(number, 0)
+    max             = number
+    placement_group = optional(bool, false)
   }))
   default     = []
   description = "Defines configuration settings for Autoscaler node pools within the cluster."
@@ -747,6 +748,13 @@ variable "cluster_autoscaler_nodepools" {
       ], np.location)
     ])
     error_message = "Each nodepool location must be one of: 'fsn1' (Falkenstein), 'nbg1' (Nuremberg), 'hel1' (Helsinki), 'ash' (Ashburn), 'hil' (Hillsboro), 'sin' (Singapore)."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.cluster_autoscaler_nodepools : !np.placement_group || np.max <= 10
+    ])
+    error_message = "Cluster Autoscaler nodepools with a placement group must not have a max greater than 10."
   }
 
   validation {

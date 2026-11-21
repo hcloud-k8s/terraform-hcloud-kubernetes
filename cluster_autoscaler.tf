@@ -29,7 +29,8 @@ locals {
                 labels    = nodepool.labels
                 taints    = nodepool.taints
               },
-              nodepool.subnet == null ? {} : { subnetIPRange = hcloud_network_subnet.cluster_autoscaler[nodepool.name].ip_range }
+              nodepool.subnet == null ? {} : { subnetIPRange = hcloud_network_subnet.cluster_autoscaler[nodepool.name].ip_range },
+              nodepool.placement_group ? { placementGroup = hcloud_placement_group.cluster_autoscaler[nodepool.name].name } : {}
             )
           }
         }
