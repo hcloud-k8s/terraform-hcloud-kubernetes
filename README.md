@@ -489,6 +489,7 @@ cluster_autoscaler_nodepools = [
     max      = 6
     labels   = { "autoscaler-node" = "true" }
     taints   = [ "autoscaler-node=true:NoExecute" ]
+    # placement_group = true
   }
 ]
 ```
