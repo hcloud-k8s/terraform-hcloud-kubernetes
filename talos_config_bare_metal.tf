@@ -4,6 +4,9 @@ locals {
   bare_metal_vswitch_ipv4_cidr_prefix_size = split("/", local.network_bare_metal_shared_ipv4_cidr)[1]
   bare_metal_vswitch_ipv4_netmask          = cidrnetmask(local.network_bare_metal_shared_ipv4_cidr)
   bare_metal_vswitch_ipv4_gateway          = cidrhost(local.network_bare_metal_shared_ipv4_cidr, 1)
+  bare_metal_nodepool_config_patches = {
+    for np in var.bare_metal_nodepools : np.name => np.config_patches
+  }
   bare_metal_extra_routes = [
     for route in local.talos_extra_routes : merge(route, {
       gateway = local.bare_metal_vswitch_ipv4_gateway
@@ -167,6 +170,7 @@ data "talos_machine_configuration" "bare_metal" {
   config_patches = concat(
     [for patch in local.talos_common_config_patches : yamlencode(patch)],
     [for patch in local.bare_metal_talos_config_patches[each.key] : yamlencode(patch)],
-    [for patch in var.bare_metal_config_patches : yamlencode(patch)]
+    [for patch in var.bare_metal_config_patches : yamlencode(patch)],
+    local.bare_metal_nodepool_config_patches[each.value.nodepool]
   )
 }
