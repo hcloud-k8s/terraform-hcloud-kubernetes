@@ -446,7 +446,7 @@ resource "talos_machine_configuration_apply" "bare_metal" {
     terraform_data.bare_metal_firewall,
     terraform_data.bare_metal_server,
     terraform_data.bare_metal_server_name,
-    terraform_data.vswitch_attachment,
+    terraform_data.vswitch_server,
     hcloud_network_subnet.bare_metal_shared,
     terraform_data.upgrade_kubernetes,
     talos_machine_configuration_apply.control_plane,
