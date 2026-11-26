@@ -1,5 +1,8 @@
 %{ if healthcheck_enabled ~}
-talos_wait_for_health
+# This template configures the autoscaler nodes, which the Cluster Autoscaler
+# creates and deletes at any moment: the plan-time node list can be out of date
+# by the time the gate runs, so the gate reads the live Kubernetes Nodes.
+talos_wait_for_live_health
 %{ endif ~}
 
 set -- ${join(" ", target_nodes)}
@@ -39,7 +42,7 @@ for host in "$@"; do
       done
 
 %{ if healthcheck_enabled ~}
-      talos_wait_for_health
+      talos_wait_for_live_health
 %{ endif ~}
 
       printf '%s\n' "Node $host rebooted successfully"

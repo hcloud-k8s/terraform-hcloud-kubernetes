@@ -50,7 +50,30 @@ locals {
   kube_prism_host = "127.0.0.1"
   kube_prism_port = 7445
 
+  # Every resource that runs a health gate gets one of these two environments;
+  # both mean "use the live Node list when the content is non-empty, plan-time
+  # lists when it is empty". The content is the state's fact about the cluster;
+  # a file path is not, because a fresh working copy has no kubeconfig file and
+  # create-once never rewrites it.
+  #
+  # The upgrade resources cannot use the content: they are dependencies of the
+  # control-plane apply, and the kubeconfig resource depends on that apply, so
+  # referencing it would make a cycle. They get the empty content and therefore
+  # the plan-time list; the wrapper still lets them run before a cluster exists.
+  talos_gate_environment = {
+    TALOSCONFIG                = nonsensitive(data.talos_client_configuration.this.talos_config)
+    CLUSTER_KUBECONFIG_CONTENT = nonsensitive(local.kubeconfig)
+  }
+
+  talos_bootstrap_gate_environment = {
+    TALOSCONFIG                = nonsensitive(data.talos_client_configuration.this.talos_config)
+    CLUSTER_KUBECONFIG_CONTENT = ""
+  }
+
   # Talos Control
+  # The health-gate functions read TALOSCONFIG and CLUSTER_KUBECONFIG_CONTENT
+  # from the calling resource's environment; no kubeconfig path is a template
+  # variable.
   talosctl_commands = templatefile("${path.module}/templates/talosctl_commands.sh.tftpl", {
     talos_upgrade_debug                 = var.talos_upgrade_debug
     talos_upgrade_force                 = var.talos_upgrade_force
@@ -125,10 +148,9 @@ resource "terraform_data" "upgrade_control_plane" {
       "printf '%s\\n' \"Control Plane Nodes upgraded successfully\"",
     ]) : "printf '%s\\n' \"Cluster not initialized, skipping Control Plane Node upgrade\""
 
-    environment = {
-      TALOSCONFIG         = nonsensitive(data.talos_client_configuration.this.talos_config)
+    environment = merge(local.talos_bootstrap_gate_environment, {
       TALOS_UPGRADE_IMAGE = local.talos_cloud_installer_image_url
-    }
+    })
   }
 
   depends_on = [
@@ -160,10 +182,9 @@ resource "terraform_data" "upgrade_worker" {
       "printf '%s\\n' \"Worker Nodes upgraded successfully\"",
     ]) : "printf '%s\\n' \"Cluster not initialized, skipping Worker Node upgrade\""
 
-    environment = {
-      TALOSCONFIG         = nonsensitive(data.talos_client_configuration.this.talos_config)
+    environment = merge(local.talos_bootstrap_gate_environment, {
       TALOS_UPGRADE_IMAGE = local.talos_cloud_installer_image_url
-    }
+    })
   }
 
   depends_on = [
@@ -203,9 +224,7 @@ resource "terraform_data" "upgrade_bare_metal" {
       "printf '%s\\n' \"Bare Metal Nodes upgraded successfully\"",
     ]) : "printf '%s\\n' \"Cluster not initialized, skipping Bare Metal Node upgrade\""
 
-    environment = {
-      TALOSCONFIG = nonsensitive(data.talos_client_configuration.this.talos_config)
-    }
+    environment = local.talos_bootstrap_gate_environment
   }
 
   depends_on = [
@@ -239,10 +258,9 @@ resource "terraform_data" "upgrade_cluster_autoscaler" {
       "printf '%s\\n' \"Cluster Autoscaler Nodes upgraded successfully\"",
     ]) : "printf '%s\\n' \"Cluster not initialized, skipping Cluster Autoscaler Node upgrade\""
 
-    environment = {
-      TALOSCONFIG         = nonsensitive(data.talos_client_configuration.this.talos_config)
+    environment = merge(local.talos_bootstrap_gate_environment, {
       TALOS_UPGRADE_IMAGE = local.talos_cloud_installer_image_url
-    }
+    })
   }
 
   depends_on = [
@@ -280,9 +298,7 @@ resource "terraform_data" "upgrade_kubernetes" {
         ) : "printf '%s\\n' \"Cluster not initialized, skipping Kubernetes upgrade\"",
     ])
 
-    environment = {
-      TALOSCONFIG = nonsensitive(data.talos_client_configuration.this.talos_config)
-    }
+    environment = local.talos_bootstrap_gate_environment
   }
 
   depends_on = [
@@ -337,7 +353,7 @@ resource "terraform_data" "talos_staged_configuration_reboot_control_plane" {
     ]) : "printf '%s\\n' \"No control plane configuration changes were applied in staged mode. Skipping reboot.\""
 
     environment = merge(
-      { TALOSCONFIG = nonsensitive(data.talos_client_configuration.this.talos_config) },
+      local.talos_gate_environment,
       {
         for _, apply in talos_machine_configuration_apply.control_plane :
         "TALOS_APPLY_MODE_${replace(apply.node, ".", "_")}" => apply.resolved_apply_mode
@@ -395,7 +411,7 @@ resource "terraform_data" "talos_staged_configuration_reboot_worker" {
     ]) : "printf '%s\\n' \"No worker configuration changes were applied in staged mode. Skipping reboot.\""
 
     environment = merge(
-      { TALOSCONFIG = nonsensitive(data.talos_client_configuration.this.talos_config) },
+      local.talos_gate_environment,
       {
         for _, apply in talos_machine_configuration_apply.worker :
         "TALOS_APPLY_MODE_${replace(apply.node, ".", "_")}" => apply.resolved_apply_mode
@@ -479,7 +495,7 @@ resource "terraform_data" "talos_staged_configuration_reboot_bare_metal" {
     ]) : "printf '%s\\n' \"No bare metal configuration changes were applied in staged mode. Skipping reboot.\""
 
     environment = merge(
-      { TALOSCONFIG = nonsensitive(data.talos_client_configuration.this.talos_config) },
+      local.talos_gate_environment,
       {
         for _, apply in talos_machine_configuration_apply.bare_metal :
         "TALOS_APPLY_MODE_${replace(apply.node, ".", "_")}" => apply.resolved_apply_mode
@@ -518,7 +534,7 @@ resource "terraform_data" "talos_machine_configuration_apply_cluster_autoscaler"
     ])
 
     environment = merge(
-      { TALOSCONFIG = nonsensitive(data.talos_client_configuration.this.talos_config) },
+      local.talos_gate_environment,
       {
         for server in local.talos_discovery_cluster_autoscaler :
         "TALOS_MC_${replace(server.private_ipv4_address, ".", "_")}" =>
@@ -577,9 +593,7 @@ resource "terraform_data" "synchronize_manifests" {
       ]
     )
 
-    environment = {
-      TALOSCONFIG = nonsensitive(data.talos_client_configuration.this.talos_config)
-    }
+    environment = local.talos_gate_environment
   }
 
   depends_on = [
