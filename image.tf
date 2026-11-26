@@ -20,6 +20,10 @@ locals {
     for server_name in keys(local.bare_metal_servers) :
     server_name => data.talos_image_factory_urls.metal[server_name].urls.installer
   }
+  talos_external_installer_image_urls = {
+    for np in local.external_nodepools :
+    np.name => data.talos_image_factory_urls.external[np.name].urls.installer
+  }
 
   cloud_arm64_server_type_pattern = "^cax\\d+$"
 
@@ -194,6 +198,15 @@ data "talos_image_factory_urls" "metal" {
   schematic_id  = local.talos_metal_schematic_ids[each.key]
   platform      = "metal"
   architecture  = each.value.architecture
+}
+
+data "talos_image_factory_urls" "external" {
+  for_each = local.external_nodepools_map
+
+  talos_version = var.talos_version
+  schematic_id  = each.value.schematic_id
+  platform      = "nocloud"
+  architecture  = "amd64"
 }
 
 data "hcloud_images" "amd64" {

@@ -73,6 +73,7 @@ locals {
     worker_nodes = concat(
       local.worker_private_ipv4_list,
       local.bare_metal_private_ipv4_list,
+      local.external_private_ipv4_list,
       local.cluster_autoscaler_private_ipv4_list
     )
   })
@@ -254,6 +255,56 @@ resource "terraform_data" "upgrade_cluster_autoscaler" {
   ]
 }
 
+resource "terraform_data" "upgrade_external" {
+  count = length(local.external_servers) > 0 ? 1 : 0
+
+  triggers_replace = [
+    var.talos_version,
+    { for np in local.external_nodepools : np.name => np.schematic_id }
+  ]
+
+  provisioner "local-exec" {
+    when  = create
+    quiet = true
+    command = local.cluster_initialized ? join("\n", [
+      "set -eu",
+      local.talosctl_commands,
+      "printf '%s\\n' \"Start upgrading External Nodes\"",
+      "health_checked=false",
+      join("\n", [
+        for name in sort(keys(local.external_servers)) : join("\n", [
+          # A node in maintenance mode installs the configured Talos when its configuration is applied.
+          "if talosctl get disks --insecure --nodes ${jsonencode(local.external_servers[name].private_ipv4)} >/dev/null 2>&1; then",
+          "printf '%s\\n' ${jsonencode("Node ${local.external_servers[name].private_ipv4} is in maintenance mode. Skipping upgrade ...")}",
+          "else",
+          "if [ \"$(talos_get_version --nodes ${jsonencode(local.external_servers[name].private_ipv4)})\" != ${jsonencode(var.talos_version)} ] || [ \"$(talos_get_schematic --nodes ${jsonencode(local.external_servers[name].private_ipv4)})\" != ${jsonencode(local.external_nodepools_map[local.external_servers[name].nodepool].schematic_id)} ]; then",
+          "if ! $health_checked; then talos_wait_for_health; health_checked=true; fi",
+          "fi",
+          "TALOS_UPGRADE_IMAGE=${jsonencode(local.talos_external_installer_image_urls[local.external_servers[name].nodepool])}",
+          templatefile("${path.module}/templates/talos_upgrade.sh.tftpl", {
+            upgrade_nodes      = [local.external_servers[name].private_ipv4]
+            talos_version      = var.talos_version
+            talos_schematic_id = local.external_nodepools_map[local.external_servers[name].nodepool].schematic_id
+          }),
+          "fi"
+        ])
+      ]),
+      "printf '%s\\n' \"External Nodes upgraded successfully\"",
+    ]) : "printf '%s\\n' \"Cluster not initialized, skipping External Node upgrade\""
+
+    environment = {
+      TALOSCONFIG = nonsensitive(data.talos_client_configuration.this.talos_config)
+    }
+  }
+
+  depends_on = [
+    data.external.talosctl_version_check,
+    data.talos_machine_configuration.external,
+    terraform_data.upgrade_bare_metal,
+    terraform_data.upgrade_cluster_autoscaler
+  ]
+}
+
 resource "terraform_data" "upgrade_kubernetes" {
   triggers_replace = [
     var.kubernetes_version,
@@ -290,7 +341,8 @@ resource "terraform_data" "upgrade_kubernetes" {
     terraform_data.upgrade_control_plane,
     terraform_data.upgrade_worker,
     terraform_data.upgrade_bare_metal,
-    terraform_data.upgrade_cluster_autoscaler
+    terraform_data.upgrade_cluster_autoscaler,
+    terraform_data.upgrade_external
   ]
 }
 
@@ -493,6 +545,36 @@ resource "terraform_data" "talos_staged_configuration_reboot_bare_metal" {
   ]
 }
 
+resource "terraform_data" "external_machine" {
+  for_each = local.external_servers
+
+  input = each.value.machine_id
+}
+
+resource "talos_machine_configuration_apply" "external" {
+  for_each = local.external_servers
+
+  client_configuration        = talos_machine_secrets.this.client_configuration
+  machine_configuration_input = data.talos_machine_configuration.external[each.key].machine_configuration
+  endpoint                    = each.value.private_ipv4
+  node                        = each.value.private_ipv4
+  apply_mode                  = var.talos_machine_configuration_apply_mode
+
+  depends_on = [
+    hcloud_network_subnet.bare_metal_shared,
+    terraform_data.upgrade_kubernetes,
+    talos_machine_configuration_apply.control_plane,
+    talos_machine_configuration_apply.worker,
+    terraform_data.talos_staged_configuration_reboot_control_plane,
+    terraform_data.talos_staged_configuration_reboot_worker
+  ]
+
+  # A recreated machine boots into maintenance mode with the same inputs.
+  lifecycle {
+    replace_triggered_by = [terraform_data.external_machine[each.key]]
+  }
+}
+
 resource "terraform_data" "talos_machine_configuration_apply_cluster_autoscaler" {
   count = var.cluster_autoscaler_discovery_enabled ? 1 : 0
 
@@ -533,6 +615,7 @@ resource "terraform_data" "talos_machine_configuration_apply_cluster_autoscaler"
     talos_machine_configuration_apply.control_plane,
     talos_machine_configuration_apply.worker,
     talos_machine_configuration_apply.bare_metal,
+    talos_machine_configuration_apply.external,
     terraform_data.talos_staged_configuration_reboot_control_plane,
     terraform_data.talos_staged_configuration_reboot_worker
   ]
@@ -547,6 +630,7 @@ resource "talos_machine_bootstrap" "this" {
     talos_machine_configuration_apply.control_plane,
     talos_machine_configuration_apply.worker,
     talos_machine_configuration_apply.bare_metal,
+    talos_machine_configuration_apply.external,
     terraform_data.talos_staged_configuration_reboot_control_plane,
     terraform_data.talos_staged_configuration_reboot_worker,
     terraform_data.talos_staged_configuration_reboot_bare_metal,
@@ -588,6 +672,7 @@ resource "terraform_data" "synchronize_manifests" {
     talos_machine_configuration_apply.control_plane,
     talos_machine_configuration_apply.worker,
     talos_machine_configuration_apply.bare_metal,
+    talos_machine_configuration_apply.external,
     terraform_data.talos_staged_configuration_reboot_control_plane,
     terraform_data.talos_staged_configuration_reboot_worker,
     terraform_data.talos_staged_configuration_reboot_bare_metal,
