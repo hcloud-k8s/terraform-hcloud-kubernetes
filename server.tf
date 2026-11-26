@@ -239,7 +239,7 @@ locals {
 
   bare_metal_initialization_ssh_hosts = {
     for server_name in keys(local.bare_metal_servers) : server_name => (
-      local.bare_metal_firewall_talos_api_ipv6_enabled ? (
+      local.bare_metal_initialization_ssh_ipv6_enabled ? (
         try(cidrhost("${local.bare_metal_server_public_network[server_name].server_ipv6_net}/64", 2), "")
       ) :
       local.bare_metal_server_public_network[server_name].server_ipv4
