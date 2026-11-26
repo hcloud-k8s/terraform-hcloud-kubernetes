@@ -282,6 +282,17 @@ variable "firewall_talos_api_source" {
   description = "Source networks that have access to Talos API. If set, this overrides the firewall_use_current_ipv4 and firewall_use_current_ipv6 settings."
 }
 
+variable "firewall_bare_metal_ssh_source" {
+  type        = list(string)
+  default     = null
+  description = "Source networks that have SSH access to bare metal servers while they are installed in rescue mode. If null, the Talos API sources are used. Must include the machine that runs the installation."
+
+  validation {
+    condition     = var.firewall_bare_metal_ssh_source == null || length(compact(coalesce(var.firewall_bare_metal_ssh_source, []))) > 0
+    error_message = "firewall_bare_metal_ssh_source must contain at least one source network when set."
+  }
+}
+
 variable "firewall_id" {
   type        = number
   default     = null

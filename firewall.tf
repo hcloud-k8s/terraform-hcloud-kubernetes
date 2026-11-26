@@ -90,9 +90,22 @@ locals {
   )))
   bare_metal_firewall_talos_api_ipv6_enabled = length(local.bare_metal_firewall_talos_api_ipv6_sources) > 0
 
+  # SSH sources for the rescue-mode installation. Defaults to the Talos API sources.
+  bare_metal_initialization_ssh_configured_sources = distinct(compact(coalesce(var.firewall_bare_metal_ssh_source, [])))
+  bare_metal_initialization_ssh_ipv4_sources = (
+    var.firewall_bare_metal_ssh_source != null ?
+    [for source in local.bare_metal_initialization_ssh_configured_sources : source if !strcontains(source, ":")] :
+    local.bare_metal_firewall_talos_api_ipv4_sources
+  )
+  bare_metal_initialization_ssh_ipv6_enabled = (
+    var.firewall_bare_metal_ssh_source != null ?
+    length(local.bare_metal_initialization_ssh_ipv4_sources) == 0 :
+    local.bare_metal_firewall_talos_api_ipv6_enabled
+  )
+
   bare_metal_initialization_firewall_service_rules = concat(
     [
-      for source_index, source in local.bare_metal_firewall_talos_api_ipv4_sources : {
+      for source_index, source in local.bare_metal_initialization_ssh_ipv4_sources : {
         name       = "Allow SSH IPv4 ${source_index + 1}"
         ip_version = "ipv4"
         protocol   = "tcp"
@@ -103,7 +116,7 @@ locals {
       }
     ],
     # Robot firewall IPv6 rules cannot filter source IPs, so IPv6 is fallback-only.
-    local.bare_metal_firewall_talos_api_ipv6_enabled ? [
+    local.bare_metal_initialization_ssh_ipv6_enabled ? [
       {
         name       = "Allow SSH IPv6"
         ip_version = "ipv6"
