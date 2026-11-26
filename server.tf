@@ -14,6 +14,19 @@ locals {
       }
     }
   ]...) : {}
+
+  external_servers = length(local.external_nodepools) > 0 ? merge([
+    for np in local.external_nodepools : {
+      for server in np.servers : server.name => {
+        nodepool            = np.name,
+        name                = server.name,
+        private_ipv4        = server.private_ipv4,
+        provider_id         = server.provider_id,
+        install_disk_serial = server.install_disk_serial,
+        machine_id          = server.machine_id,
+      }
+    }
+  ]...) : {}
 }
 
 resource "hcloud_server" "control_plane" {

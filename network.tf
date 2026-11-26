@@ -80,6 +80,9 @@ locals {
   # Lists for bare metal nodes
   bare_metal_private_ipv4_list = compact(distinct([for server in local.bare_metal_servers : server.private_ipv4]))
 
+  # Lists for external nodes
+  external_private_ipv4_list = compact(distinct([for server in local.external_servers : server.private_ipv4]))
+
   # Lists for cluster autoscaler nodes
   cluster_autoscaler_public_ipv4_list  = compact(distinct([for server in local.talos_discovery_cluster_autoscaler : server.public_ipv4_address]))
   cluster_autoscaler_public_ipv6_list  = compact(distinct([for server in local.talos_discovery_cluster_autoscaler : server.public_ipv6_address]))
