@@ -847,6 +847,23 @@ locals {
       )
     }
   } : {}
+
+  # Private IPv4 addresses claimed by more than one member. A cloud provider
+  # hands a deleted node's address out again for a new node before the deleted
+  # node's entry leaves the cluster's member list, so one address can name two
+  # members and nothing in the data says which of them is alive. Pushing the old
+  # member's configuration to whichever node holds the address now would give
+  # that node the old node's labels and taints, so such an address is left
+  # alone: the configuration of a node the autoscaler already replaced does not
+  # matter, and a new node takes its configuration from the autoscaler's node
+  # configuration secret when it is created.
+  talos_cluster_autoscaler_ambiguous_private_ipv4 = [
+    for address, hostnames in {
+      for hostname, server in local.talos_discovery_cluster_autoscaler :
+      server.private_ipv4_address => hostname...
+      if server.private_ipv4_address != null
+    } : address if length(hostnames) > 1
+  ]
 }
 
 data "external" "talos_member" {

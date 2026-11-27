@@ -510,7 +510,11 @@ resource "terraform_data" "talos_machine_configuration_apply_cluster_autoscaler"
       "set -eu",
       local.talosctl_commands,
       templatefile("${path.module}/templates/talos_apply_config.sh.tftpl", {
-        target_nodes                                  = local.cluster_autoscaler_private_ipv4_list
+        target_nodes = [
+          for hostname, server in local.talos_discovery_cluster_autoscaler :
+          "${hostname}=${server.private_ipv4_address}"
+          if server.private_ipv4_address != null && !contains(local.talos_cluster_autoscaler_ambiguous_private_ipv4, server.private_ipv4_address)
+        ]
         apply_mode                                    = var.talos_machine_configuration_apply_mode
         staged_configuration_automatic_reboot_enabled = local.talos_staged_configuration_automatic_reboot_enabled
         healthcheck_enabled                           = local.cluster_initialized
@@ -520,9 +524,10 @@ resource "terraform_data" "talos_machine_configuration_apply_cluster_autoscaler"
     environment = merge(
       { TALOSCONFIG = nonsensitive(data.talos_client_configuration.this.talos_config) },
       {
-        for server in local.talos_discovery_cluster_autoscaler :
-        "TALOS_MC_${replace(server.private_ipv4_address, ".", "_")}" =>
+        for hostname, server in local.talos_discovery_cluster_autoscaler :
+        "TALOS_MC_${replace(replace(hostname, ".", "_"), "-", "_")}" =>
         nonsensitive(data.talos_machine_configuration.cluster_autoscaler[server.nodepool].machine_configuration)
+        if server.private_ipv4_address != null && !contains(local.talos_cluster_autoscaler_ambiguous_private_ipv4, server.private_ipv4_address)
       }
     )
   }
