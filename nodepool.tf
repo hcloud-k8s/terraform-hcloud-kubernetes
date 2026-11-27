@@ -108,9 +108,10 @@ locals {
         "^(?P<key>[^=:]+)=?(?P<value>[^=:]*?):(?P<effect>.+)$",
         taint
       )],
-      subnet = np.subnet,
-      min    = np.min,
-      max    = np.max
+      subnet          = np.subnet,
+      min             = np.min,
+      max             = np.max,
+      placement_group = np.placement_group
     }
   ]
 
