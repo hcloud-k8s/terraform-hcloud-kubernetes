@@ -90,7 +90,8 @@ locals {
         "^(?P<key>[^=:]+)=?(?P<value>[^=:]*?):(?P<effect>.+)$",
         taint
       )],
-      count = length(np.servers),
+      count                  = length(np.servers),
+      talos_image_extensions = np.talos_image_extensions,
     }
   ]
 

@@ -503,19 +503,27 @@ variable "bare_metal_nodepools" {
       preserve_other_disks   = optional(bool, false)
       robot_firewall_enabled = optional(bool, true)
     }))
-    labels      = optional(map(string), {})
-    annotations = optional(map(string), {})
-    taints      = optional(list(string), [])
-    rdns        = optional(string)
-    rdns_ipv4   = optional(string)
-    rdns_ipv6   = optional(string)
+    labels                 = optional(map(string), {})
+    annotations            = optional(map(string), {})
+    taints                 = optional(list(string), [])
+    rdns                   = optional(string)
+    rdns_ipv4              = optional(string)
+    rdns_ipv6              = optional(string)
+    talos_image_extensions = optional(list(string), [])
   }))
   default     = []
-  description = "Defines configuration settings for Hetzner bare metal Worker node pools."
+  description = "Defines configuration settings for Hetzner bare metal Worker node pools. `talos_image_extensions` adds Talos image extensions to this pool's metal schematics on top of `talos_image_extensions` (e.g. GPU drivers)."
 
   validation {
     condition     = length(var.bare_metal_nodepools) == length(distinct([for np in var.bare_metal_nodepools : np.name]))
     error_message = "Bare metal nodepool names must be unique to avoid configuration conflicts."
+  }
+
+  validation {
+    condition = alltrue([
+      for np in var.bare_metal_nodepools : length(np.talos_image_extensions) == length(distinct(np.talos_image_extensions))
+    ])
+    error_message = "Bare metal nodepool talos_image_extensions must not contain duplicates."
   }
 
   validation {

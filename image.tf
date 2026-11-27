@@ -89,6 +89,15 @@ locals {
   )
 
   talos_metal_image_extensions = local.talos_image_extensions_base
+
+  # Bare metal nodepools with their own extra extensions (e.g. GPU drivers).
+  # Pools without extras keep using the shared extension lookup, so their
+  # schematics stay identical to a configuration without this feature.
+  talos_metal_nodepool_image_extensions = {
+    for np in local.bare_metal_nodepools : np.name => distinct(
+      concat(local.talos_metal_image_extensions, np.talos_image_extensions)
+    ) if length(np.talos_image_extensions) > 0
+  }
   talos_metal_image_common_extra_kernel_args = sort(distinct(
     concat(
       var.talos_extra_kernel_args,
@@ -131,6 +140,17 @@ data "talos_image_factory_extensions_versions" "metal" {
   }
 }
 
+data "talos_image_factory_extensions_versions" "metal_nodepool" {
+  for_each = local.talos_metal_nodepool_image_extensions
+
+  talos_version = var.talos_version
+  # Exact match: substring filters would pull in sibling builds such as
+  # nvidia-container-toolkit-lts next to nvidia-container-toolkit-production.
+  exact_filters = {
+    names = each.value
+  }
+}
+
 resource "talos_image_factory_schematic" "cloud" {
   count = var.talos_schematic_id == null ? 1 : 0
 
@@ -159,6 +179,8 @@ resource "talos_image_factory_schematic" "metal" {
         extraKernelArgs = local.talos_metal_extra_kernel_args[each.key]
         systemExtensions = {
           officialExtensions = (
+            contains(keys(local.talos_metal_nodepool_image_extensions), each.value.nodepool) ?
+            data.talos_image_factory_extensions_versions.metal_nodepool[each.value.nodepool].extensions_info[*].name :
             length(local.talos_metal_image_extensions) > 0 ?
             data.talos_image_factory_extensions_versions.metal[0].extensions_info.*.name :
             []
